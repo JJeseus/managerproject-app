@@ -487,7 +487,7 @@ export function QuickCaptureDialog({
       }
 
       if (resource) {
-        const result = await executeMutation({
+        const result = await executeMutation<'updateResource'>({
           action: 'updateResource',
           payload: {
             resourceId: resource.id,
@@ -506,7 +506,7 @@ export function QuickCaptureDialog({
         return
       }
 
-      const result = await executeMutation({
+      const result = await executeMutation<'addResource'>({
         action: 'addResource',
         payload,
       })
