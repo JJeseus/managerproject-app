@@ -39,6 +39,28 @@ export const activityTypeEnum = pgEnum('activity_type', [
   'status_changed',
 ])
 
+export const resourceTypeEnum = pgEnum('resource_type', [
+  'code',
+  'document',
+  'spreadsheet',
+  'dataset',
+  'link',
+  'image',
+  'other',
+])
+
+export const resourceStatusEnum = pgEnum('resource_status', [
+  'draft',
+  'ready',
+  'applied',
+  'archived',
+])
+
+export const resourceLinkTargetTypeEnum = pgEnum('resource_link_target_type', [
+  'project',
+  'resource',
+])
+
 export const projects = pgTable(
   'projects',
   {
@@ -181,6 +203,61 @@ export const activities = pgTable(
   })
 )
 
+export const resources = pgTable(
+  'resources',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id').references(() => projects.id, {
+      onDelete: 'set null',
+    }),
+    taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+    title: text('title').notNull(),
+    description: text('description').notNull().default(''),
+    type: resourceTypeEnum('type').notNull(),
+    language: text('language').notNull().default(''),
+    format: text('format').notNull().default(''),
+    content: text('content').notNull().default(''),
+    sourceUrl: text('source_url').notNull().default(''),
+    status: resourceStatusEnum('status').notNull().default('draft'),
+    tags: text('tags').array().notNull().default([]),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    projectIdIdx: index('resources_project_id_idx').on(table.projectId),
+    taskIdIdx: index('resources_task_id_idx').on(table.taskId),
+    typeIdx: index('resources_type_idx').on(table.type),
+    statusIdx: index('resources_status_idx').on(table.status),
+    createdAtIdx: index('resources_created_at_idx').on(table.createdAt),
+  })
+)
+
+export const resourceLinks = pgTable(
+  'resource_links',
+  {
+    id: text('id').primaryKey(),
+    sourceResourceId: text('source_resource_id')
+      .notNull()
+      .references(() => resources.id, { onDelete: 'cascade' }),
+    targetType: resourceLinkTargetTypeEnum('target_type').notNull(),
+    targetId: text('target_id').notNull(),
+    label: text('label').notNull().default(''),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    sourceResourceIdIdx: index('resource_links_source_resource_id_idx').on(table.sourceResourceId),
+    targetTypeIdx: index('resource_links_target_type_idx').on(table.targetType),
+    targetIdIdx: index('resource_links_target_id_idx').on(table.targetId),
+    createdAtIdx: index('resource_links_created_at_idx').on(table.createdAt),
+  })
+)
+
 export const projectsRelations = relations(projects, ({ many }) => ({
   tasks: many(tasks),
   notes: many(notes),
@@ -234,3 +311,21 @@ export const activitiesRelations = relations(activities, ({ one }) => ({
   }),
 }))
 
+export const resourcesRelations = relations(resources, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [resources.projectId],
+    references: [projects.id],
+  }),
+  task: one(tasks, {
+    fields: [resources.taskId],
+    references: [tasks.id],
+  }),
+  outgoingLinks: many(resourceLinks),
+}))
+
+export const resourceLinksRelations = relations(resourceLinks, ({ one }) => ({
+  sourceResource: one(resources, {
+    fields: [resourceLinks.sourceResourceId],
+    references: [resources.id],
+  }),
+}))

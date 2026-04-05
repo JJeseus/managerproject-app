@@ -54,9 +54,80 @@ export interface Note {
   timestamp: string
 }
 
+export type ResourceType =
+  | 'code'
+  | 'document'
+  | 'spreadsheet'
+  | 'dataset'
+  | 'link'
+  | 'image'
+  | 'other'
+
+export type ResourceStatus = 'draft' | 'ready' | 'applied' | 'archived'
+export type ResourceLinkTargetType = 'project' | 'resource'
+
+export interface ResourceLink {
+  id: string
+  sourceResourceId: string
+  targetType: ResourceLinkTargetType
+  targetId: string
+  targetName: string
+  label?: string
+  createdAt: string
+}
+
+export interface ResourceBacklink {
+  id: string
+  sourceResourceId: string
+  sourceResourceTitle: string
+  sourceProjectId?: string
+  sourceProjectName?: string
+  label?: string
+  createdAt: string
+}
+
+export type ResourceGraphEdgeKind =
+  | 'primary-project'
+  | 'explicit-project'
+  | 'explicit-resource'
+
+export interface ResourceGraphEdge {
+  id: string
+  sourceType: ResourceLinkTargetType
+  sourceId: string
+  targetType: ResourceLinkTargetType
+  targetId: string
+  kind: ResourceGraphEdgeKind
+  label?: string
+}
+
+export interface Resource {
+  id: string
+  projectId?: string
+  taskId?: string
+  title: string
+  content: string
+  description: string
+  type: ResourceType
+  language: string
+  format: string
+  sourceUrl: string
+  status: ResourceStatus
+  tags: string[]
+  timestamp: string
+  links?: ResourceLink[]
+  backlinks?: ResourceBacklink[]
+  unresolvedLinks?: string[]
+}
+
 export interface Activity {
   id: string
-  type: 'task_created' | 'task_completed' | 'project_updated' | 'note_added' | 'status_changed'
+  type:
+    | 'task_created'
+    | 'task_completed'
+    | 'project_updated'
+    | 'note_added'
+    | 'status_changed'
   description: string
   timestamp: string
   projectId?: string
@@ -497,6 +568,107 @@ export const notes: Note[] = [
   },
 ]
 
+export const resources: Resource[] = [
+  {
+    id: 'res-1',
+    projectId: 'proj-1',
+    taskId: 'task-3',
+    title: 'Footer base en HTML',
+    description: 'Estructura HTML utilizada para el footer del rediseño. Referencia a [[Integración de APIs]] y #html.',
+    type: 'code',
+    language: 'html',
+    format: 'html',
+    content:
+      '<footer class="border-t py-6"><div class="mx-auto max-w-6xl px-4">...</div></footer>\n<!-- Compartido con [[Especificación de integración]] y #ui -->',
+    sourceUrl: '',
+    status: 'applied',
+    tags: ['html', 'footer', 'ui'],
+    timestamp: '2026-04-04T08:00:00Z',
+  },
+  {
+    id: 'res-2',
+    projectId: 'proj-3',
+    title: 'Especificación de integración',
+    description: 'Resumen de requisitos para la integración de pagos y analítica. Depende de [[Rediseño del sitio web]] y #api.',
+    type: 'document',
+    language: '',
+    format: 'pdf',
+    content: 'Checklist de integracion para [[Footer base en HTML]] y despliegue de #pagos.',
+    sourceUrl: 'https://example.com/especificacion-integracion.pdf',
+    status: 'ready',
+    tags: ['pdf', 'requisitos', 'pagos'],
+    timestamp: '2026-04-03T18:30:00Z',
+  },
+  {
+    id: 'res-3',
+    projectId: 'proj-6',
+    title: 'Muestra de métricas',
+    description: 'Exportación de métricas base para comparar optimizaciones. Cruza datos con [[Integración de APIs]] y #csv.',
+    type: 'dataset',
+    language: '',
+    format: 'csv',
+    content:
+      'pagina,tiempo_carga,lcp,cls\ninicio,2.8,2.1,0.08\nproyecto,3.4,2.9,0.12',
+    sourceUrl: '',
+    status: 'draft',
+    tags: ['csv', 'metricas', 'rendimiento'],
+    timestamp: '2026-04-02T12:15:00Z',
+  },
+  {
+    id: 'res-4',
+    projectId: 'proj-2',
+    title: 'AppSheet flujo de captura',
+    description: 'Automatización del formulario móvil con #appsheet enlazada a [[Integración de APIs]].',
+    type: 'code',
+    language: 'appsheet',
+    format: 'appsheet',
+    content: 'LINKTOROW([_THISROW], "Detalle")\n/* conecta con [[Especificación de integración]] */',
+    sourceUrl: '',
+    status: 'draft',
+    tags: ['appsheet', 'movil'],
+    timestamp: '2026-04-05T00:10:00Z',
+  },
+]
+
+export const resourceLinks: ResourceLink[] = [
+  {
+    id: 'res-link-1',
+    sourceResourceId: 'res-1',
+    targetType: 'project',
+    targetId: 'proj-3',
+    targetName: 'Integración de APIs',
+    label: 'Integración de APIs',
+    createdAt: '2026-04-04T08:00:00Z',
+  },
+  {
+    id: 'res-link-2',
+    sourceResourceId: 'res-1',
+    targetType: 'resource',
+    targetId: 'res-2',
+    targetName: 'Especificación de integración',
+    label: 'Especificación de integración',
+    createdAt: '2026-04-04T08:00:00Z',
+  },
+  {
+    id: 'res-link-3',
+    sourceResourceId: 'res-3',
+    targetType: 'project',
+    targetId: 'proj-3',
+    targetName: 'Integración de APIs',
+    label: 'Integración de APIs',
+    createdAt: '2026-04-02T12:15:00Z',
+  },
+  {
+    id: 'res-link-4',
+    sourceResourceId: 'res-4',
+    targetType: 'resource',
+    targetId: 'res-2',
+    targetName: 'Especificación de integración',
+    label: 'Especificación de integración',
+    createdAt: '2026-04-05T00:10:00Z',
+  },
+]
+
 // Helper functions
 export function getProjects(): Project[] {
   return projects
@@ -527,6 +699,26 @@ export function getActivities(limit?: number): Activity[] {
 
 export function getNotesByProjectId(projectId: string): Note[] {
   return notes.filter((n) => n.projectId === projectId)
+}
+
+export function getResources(): Resource[] {
+  return [...resources].sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  )
+}
+
+export function getResourcesByProjectId(projectId: string): Resource[] {
+  return getResources().filter((resource) => resource.projectId === projectId)
+}
+
+export function getRecentResources(limit = 5): Resource[] {
+  return getResources().slice(0, limit)
+}
+
+export function getResourceLinks(): ResourceLink[] {
+  return [...resourceLinks].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  )
 }
 
 // Stats helpers

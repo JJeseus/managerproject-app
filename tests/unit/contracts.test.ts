@@ -33,4 +33,28 @@ describe('contratos de mutación', () => {
 
     expect(result.success).toBe(false)
   })
+
+  it('acepta recursos sin proyecto principal', () => {
+    const parsed = mutationRequestSchema.parse({
+      action: 'addResource',
+      payload: {
+        title: 'Snippet',
+        description: 'Relaciona con [[Rediseño del sitio web]] y #html',
+        type: 'code',
+        language: 'html',
+        format: '',
+        content: '<div></div>',
+        sourceUrl: '',
+        status: 'draft',
+        tags: ['ui'],
+        projectId: null,
+      },
+    })
+
+    expect(parsed.action).toBe('addResource')
+    if (parsed.action !== 'addResource') {
+      throw new Error('Se esperaba addResource')
+    }
+    expect(parsed.payload.projectId).toBeNull()
+  })
 })
