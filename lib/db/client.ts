@@ -2,16 +2,21 @@ import { neon } from '@neondatabase/serverless'
 import { drizzle } from 'drizzle-orm/neon-http'
 import * as schema from './schema'
 
-const databaseUrl = process.env.DATABASE_URL
-
-const client = databaseUrl ? neon(databaseUrl) : null
-
-export const db = client ? drizzle({ client, schema }) : null
+let dbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null
 
 export function getDb() {
-  if (!db) {
+  if (dbInstance) {
+    return dbInstance
+  }
+
+  const databaseUrl = process.env.DATABASE_URL
+
+  if (!databaseUrl) {
     throw new Error('Falta la variable de entorno DATABASE_URL')
   }
 
-  return db
+  const client = neon(databaseUrl)
+  dbInstance = drizzle({ client, schema })
+
+  return dbInstance
 }

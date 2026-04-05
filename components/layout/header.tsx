@@ -2,7 +2,7 @@
 
 import { Fragment } from 'react'
 import { useTheme } from 'next-themes'
-import { Moon, Sun, Search, Bell, Plus } from 'lucide-react'
+import { Moon, Sun, Search, Bell } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { SidebarTrigger } from '@/components/ui/sidebar'
@@ -16,17 +16,18 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { QuickCaptureDialog } from '@/components/capture/quick-capture-dialog'
 
 interface HeaderProps {
   title: string
@@ -116,19 +117,7 @@ export function Header({ title, breadcrumbs = [] }: HeaderProps) {
 
         <Separator orientation="vertical" className="mx-1 h-4" />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="sm" className="h-8 gap-1" disabled>
-              <Plus className="size-4" />
-              <span className="hidden sm:inline">No disponible</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem disabled>Crear proyecto</DropdownMenuItem>
-            <DropdownMenuItem disabled>Crear tarea</DropdownMenuItem>
-            <DropdownMenuItem disabled>Crear nota</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <QuickCaptureDialog />
       </div>
     </header>
   )

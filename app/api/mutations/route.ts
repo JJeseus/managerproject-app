@@ -4,11 +4,14 @@ import { mutationRequestSchema, type ApiResult } from '@/lib/db/contracts'
 import {
   addComment,
   addNote,
+  addResource,
   addSubtask,
+  createProject,
   createTask,
   deleteTask,
   isMutationError,
   updateProject,
+  updateResource,
   updateSubtask,
   updateTask,
   updateTaskStatus,
@@ -36,6 +39,8 @@ export async function POST(request: Request) {
     const parsed = mutationRequestSchema.parse(body)
 
     switch (parsed.action) {
+      case 'createProject':
+        return NextResponse.json({ ok: true, data: await createProject(parsed.payload) })
       case 'createTask':
         return NextResponse.json({ ok: true, data: await createTask(parsed.payload) })
       case 'updateTask':
@@ -58,6 +63,13 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true, data: await addComment(parsed.payload) })
       case 'addNote':
         return NextResponse.json({ ok: true, data: await addNote(parsed.payload) })
+      case 'addResource':
+        return NextResponse.json({ ok: true, data: await addResource(parsed.payload) })
+      case 'updateResource':
+        return NextResponse.json({
+          ok: true,
+          data: await updateResource(parsed.payload),
+        })
       case 'updateProject':
         return NextResponse.json({
           ok: true,
