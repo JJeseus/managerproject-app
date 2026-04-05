@@ -11,14 +11,6 @@ import {
   type ReactNode,
 } from 'react'
 import { useRouter } from 'next/navigation'
-import prettier from 'prettier/standalone'
-import babelPlugin from 'prettier/plugins/babel'
-import estreePlugin from 'prettier/plugins/estree'
-import htmlPlugin from 'prettier/plugins/html'
-import markdownPlugin from 'prettier/plugins/markdown'
-import typescriptPlugin from 'prettier/plugins/typescript'
-import cssPlugin from 'prettier/plugins/postcss'
-import yamlPlugin from 'prettier/plugins/yaml'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -213,61 +205,18 @@ function isSupportedCodeLanguage(language: string): language is SupportedCodeLan
   return defaultCodeLanguages.includes(language as SupportedCodeLanguage)
 }
 
-function getPrettierParser(language: string): string | null {
-  if (!isSupportedCodeLanguage(language)) {
-    return null
-  }
-
-  switch (language) {
-    case 'html':
-    case 'xml':
-      return 'html'
-    case 'css':
-      return 'css'
-    case 'javascript':
-    case 'appscript':
-      return 'babel'
-    case 'typescript':
-      return 'typescript'
-    case 'json':
-      return 'json'
-    case 'yaml':
-      return 'yaml'
-    case 'markdown':
-      return 'markdown'
-    case 'sql':
-    case 'r':
-    case 'appsheet':
-    case 'shell':
-      return null
-  }
-}
-
 async function formatCodeContent(content: string, language: string): Promise<string> {
-  const parser = getPrettierParser(language)
+  const trimmed = content.trim()
 
-  if (!parser) {
-    return content.trim()
+  if (!trimmed) {
+    return ''
   }
 
-  try {
-    return await prettier.format(content, {
-      parser,
-      plugins: [
-        babelPlugin,
-        estreePlugin,
-        htmlPlugin,
-        markdownPlugin,
-        typescriptPlugin,
-        cssPlugin,
-        yamlPlugin,
-      ],
-      semi: true,
-      singleQuote: true,
-    })
-  } catch {
-    return content.trim()
+  if (!isSupportedCodeLanguage(language)) {
+    return trimmed
   }
+
+  return trimmed.replace(/\t/g, '  ')
 }
 
 export function QuickCaptureDialog({
