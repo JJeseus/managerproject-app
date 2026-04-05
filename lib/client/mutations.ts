@@ -1,7 +1,16 @@
 import type { ApiError, MutationRequest } from '@/lib/db/contracts'
-import type { Comment, Note, Project, Subtask, Task, TaskStatus } from '@/lib/data'
+import type {
+  Comment,
+  Note,
+  Project,
+  Resource,
+  Subtask,
+  Task,
+  TaskStatus,
+} from '@/lib/data'
 
 type MutationResponseMap = {
+  createProject: { project: Project }
   createTask: { task: Task }
   updateTask: { task: Task }
   deleteTask: { taskId: string }
@@ -10,6 +19,8 @@ type MutationResponseMap = {
   updateSubtask: { taskId: string; projectId?: string; subtask: Subtask }
   addComment: { taskId: string; comment: Comment }
   addNote: { projectId: string; note: Note }
+  addResource: { resource: Resource }
+  updateResource: { resource: Resource }
   updateProject: { project: Project }
 }
 
