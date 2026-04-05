@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
-import { Calendar, Clock, MoreHorizontal, Plus } from 'lucide-react'
+import { Calendar, Clock, MoreHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -21,6 +21,7 @@ import { formatDate, formatDateShort } from '@/lib/date'
 import {
   type Note,
   type Project,
+  type Resource,
   type Task,
   type TaskStatus,
   priorityColors,
@@ -29,25 +30,60 @@ import {
   statusLabels,
 } from '@/lib/data'
 import { ProjectNotes } from '@/components/notes/project-notes'
+import { EditProjectDialog } from '@/components/projects/edit-project-dialog'
+import { ProjectResourcesMap } from '@/components/projects/project-resources-map'
+import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
+import { TaskDetailPanel } from '@/components/tasks/task-detail-panel'
 import { TaskTable } from '@/components/tasks/task-table'
 
 interface ProjectDetailProps {
   project: Project
   initialTasks: Task[]
   notes: Note[]
+  resources: Resource[]
 }
 
-export function ProjectDetail({ project, initialTasks, notes }: ProjectDetailProps) {
+function calculateProgress(tasks: Task[]) {
+  if (tasks.length === 0) return 0
+  return Math.round((tasks.filter((task) => task.status === 'done').length / tasks.length) * 100)
+}
+
+export function ProjectDetail({
+  project,
+  initialTasks,
+  notes,
+  resources,
+}: ProjectDetailProps) {
+  const [currentProject, setCurrentProject] = useState<Project>(project)
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [projectNotes, setProjectNotes] = useState<Note[]>(notes)
-  const [isSaving, setIsSaving] = useState(false)
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+
   const completedTasks = tasks.filter((task) => task.status === 'done').length
+  const derivedProgress = calculateProgress(tasks)
+
+  const syncProjectProgress = (nextTasks: Task[]) => {
+    setCurrentProject((prev) => ({
+      ...prev,
+      progress: calculateProgress(nextTasks),
+    }))
+  }
+
+  const setTaskPatch = (taskId: string, patch: Partial<Task>) => {
+    setTasks((prevTasks) =>
+      prevTasks.map((task) => (task.id === taskId ? { ...task, ...patch } : task))
+    )
+    setSelectedTask((prev) => (prev?.id === taskId ? { ...prev, ...patch } : prev))
+  }
 
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
     const previousTasks = tasks
-    setTasks((prev) =>
-      prev.map((task) => (task.id === taskId ? { ...task, status: newStatus } : task))
+    const nextTasks = previousTasks.map((task) =>
+      task.id === taskId ? { ...task, status: newStatus } : task
     )
+
+    setTasks(nextTasks)
+    syncProjectProgress(nextTasks)
 
     const result = await executeMutation({
       action: 'updateTaskStatus',
@@ -59,42 +95,16 @@ export function ProjectDetail({ project, initialTasks, notes }: ProjectDetailPro
 
     if (!result.ok) {
       setTasks(previousTasks)
+      syncProjectProgress(previousTasks)
       toast.error(result.message)
     }
-  }
-
-  const handleCreateTask = async () => {
-    const title = window.prompt('Título de la tarea:')
-    if (!title?.trim()) return
-
-    setIsSaving(true)
-    const result = await executeMutation({
-      action: 'createTask',
-      payload: {
-        projectId: project.id,
-        title: title.trim(),
-        description: '',
-        priority: 'medium',
-        dueDate: new Date().toISOString().slice(0, 10),
-        tags: [],
-      },
-    })
-    setIsSaving(false)
-
-    if (!result.ok) {
-      toast.error(result.message)
-      return
-    }
-
-    setTasks((prev) => [result.data.task, ...prev])
-    toast.success('Tarea creada')
   }
 
   const handleAddNote = async (content: string, taskId?: string) => {
     const result = await executeMutation({
       action: 'addNote',
       payload: {
-        projectId: project.id,
+        projectId: currentProject.id,
         taskId,
         content,
       },
@@ -109,6 +119,91 @@ export function ProjectDetail({ project, initialTasks, notes }: ProjectDetailPro
     toast.success('Nota guardada')
   }
 
+  const handleAddSubtask = async (taskId: string, title: string) => {
+    const result = await executeMutation({
+      action: 'addSubtask',
+      payload: { taskId, title },
+    })
+
+    if (!result.ok) {
+      toast.error(result.message)
+      return
+    }
+
+    const currentTask = tasks.find((task) => task.id === taskId)
+    const currentSubtasks = currentTask?.subtasks ?? []
+    setTaskPatch(taskId, {
+      subtasks: [...currentSubtasks, result.data.subtask],
+    })
+  }
+
+  const handleUpdateSubtask = async (
+    taskId: string,
+    subtaskId: string,
+    patch: { completed?: boolean; result?: 'pending' | 'pass' | 'fail' }
+  ) => {
+    const previous = tasks
+    const task = tasks.find((item) => item.id === taskId)
+    if (!task?.subtasks) return
+
+    setTaskPatch(taskId, {
+      subtasks: task.subtasks.map((subtask) =>
+        subtask.id === subtaskId
+          ? {
+              ...subtask,
+              ...patch,
+              completed:
+                typeof patch.completed === 'boolean'
+                  ? patch.completed
+                  : patch.result
+                    ? patch.result !== 'pending'
+                    : subtask.completed,
+            }
+          : subtask
+      ),
+    })
+
+    const result = await executeMutation({
+      action: 'updateSubtask',
+      payload: {
+        subtaskId,
+        patch,
+      },
+    })
+
+    if (!result.ok) {
+      setTasks(previous)
+      setSelectedTask(previous.find((item) => item.id === selectedTask?.id) ?? null)
+      toast.error(result.message)
+      return
+    }
+
+    const freshTask = previous.find((item) => item.id === taskId)
+    setTaskPatch(taskId, {
+      subtasks: (freshTask?.subtasks ?? []).map((subtask) =>
+        subtask.id === subtaskId ? result.data.subtask : subtask
+      ),
+    })
+  }
+
+  const handleAddComment = async (taskId: string, content: string) => {
+    const result = await executeMutation({
+      action: 'addComment',
+      payload: { taskId, content },
+    })
+
+    if (!result.ok) {
+      toast.error(result.message)
+      return
+    }
+
+    const currentTask = tasks.find((task) => task.id === taskId)
+    const currentComments = currentTask?.comments ?? []
+    setTaskPatch(taskId, {
+      comments: [...currentComments, result.data.comment],
+    })
+  }
+
   return (
     <div className="space-y-6">
       <div className="overflow-hidden rounded-xl border bg-card">
@@ -116,31 +211,33 @@ export function ProjectDetail({ project, initialTasks, notes }: ProjectDetailPro
           <div className="flex flex-col justify-between gap-4 p-6">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className={statusColors[project.status]}>
-                  {statusLabels[project.status]}
+                <Badge variant="outline" className={statusColors[currentProject.status]}>
+                  {statusLabels[currentProject.status]}
                 </Badge>
-                <Badge variant="outline" className={priorityColors[project.priority]}>
-                  {priorityLabels[project.priority]}
+                <Badge variant="outline" className={priorityColors[currentProject.priority]}>
+                  {priorityLabels[currentProject.priority]}
                 </Badge>
               </div>
               <h1 className="text-2xl font-semibold tracking-tight text-balance">
-                {project.name}
+                {currentProject.name}
               </h1>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                {project.description}
+                {currentProject.description}
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1.5">
                   <Calendar className="size-3.5" />
-                  Inicio {formatDate(project.startDate)}
+                  Inicio {formatDate(currentProject.startDate)}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" disabled>
-                  No disponible
-                </Button>
+                <EditProjectDialog
+                  key={`${currentProject.id}-${currentProject.name}-${currentProject.status}-${currentProject.priority}-${currentProject.startDate}-${currentProject.dueDate}-${currentProject.image}-${currentProject.tags.join(',')}`}
+                  project={currentProject}
+                  onUpdated={(updatedProject) => setCurrentProject(updatedProject)}
+                />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="icon" className="size-8" disabled>
@@ -161,8 +258,8 @@ export function ProjectDetail({ project, initialTasks, notes }: ProjectDetailPro
           </div>
           <div className="relative min-h-[180px] bg-muted md:min-h-0">
             <Image
-              src={project.image}
-              alt={`Portada de ${project.name}`}
+              src={currentProject.image}
+              alt={`Portada de ${currentProject.name}`}
               fill
               className="object-cover"
               sizes="(max-width: 768px) 100vw, 50vw"
@@ -180,8 +277,8 @@ export function ProjectDetail({ project, initialTasks, notes }: ProjectDetailPro
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{project.progress}%</div>
-            <Progress value={project.progress} className="mt-2 h-2" />
+            <div className="text-2xl font-bold">{derivedProgress}%</div>
+            <Progress value={derivedProgress} className="mt-2 h-2" />
           </CardContent>
         </Card>
 
@@ -207,9 +304,9 @@ export function ProjectDetail({ project, initialTasks, notes }: ProjectDetailPro
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatDateShort(project.dueDate)}</div>
+            <div className="text-2xl font-bold">{formatDateShort(currentProject.dueDate)}</div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {formatDate(project.dueDate, 'yyyy')}
+              {formatDate(currentProject.dueDate, 'yyyy')}
             </p>
           </CardContent>
         </Card>
@@ -222,8 +319,11 @@ export function ProjectDetail({ project, initialTasks, notes }: ProjectDetailPro
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Badge variant="outline" className={`text-sm ${priorityColors[project.priority]}`}>
-              {priorityLabels[project.priority]}
+            <Badge
+              variant="outline"
+              className={`text-sm ${priorityColors[currentProject.priority]}`}
+            >
+              {priorityLabels[currentProject.priority]}
             </Badge>
           </CardContent>
         </Card>
@@ -233,12 +333,21 @@ export function ProjectDetail({ project, initialTasks, notes }: ProjectDetailPro
         <div className="flex items-center justify-between">
           <TabsList>
             <TabsTrigger value="tasks">Tareas ({tasks.length})</TabsTrigger>
+            <TabsTrigger value="resources">Recursos ({resources.length})</TabsTrigger>
             <TabsTrigger value="notes">Notas ({projectNotes.length})</TabsTrigger>
           </TabsList>
-          <Button size="sm" className="gap-1" onClick={() => void handleCreateTask()} disabled={isSaving}>
-            <Plus className="size-4" />
-            Nueva tarea
-          </Button>
+          <CreateTaskDialog
+            projects={[currentProject]}
+            defaultProjectId={currentProject.id}
+            triggerLabel="Nueva tarea"
+            onCreated={(task) => {
+              setTasks((prev) => {
+                const nextTasks = [task, ...prev]
+                syncProjectProgress(nextTasks)
+                return nextTasks
+              })
+            }}
+          />
         </div>
 
         <TabsContent value="tasks" className="mt-4">
@@ -246,35 +355,48 @@ export function ProjectDetail({ project, initialTasks, notes }: ProjectDetailPro
             <TaskTable
               tasks={tasks}
               showProject={false}
+              onTaskClick={(task) => setSelectedTask(task)}
               onStatusChange={(taskId, status) => void handleStatusChange(taskId, status)}
             />
           ) : (
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <p className="text-muted-foreground">Aún no hay tareas</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-4"
-                  onClick={() => void handleCreateTask()}
-                  disabled={isSaving}
-                >
-                  <Plus className="mr-2 size-4" />
-                  Crear primera tarea
-                </Button>
+                <CreateTaskDialog
+                  projects={[currentProject]}
+                  defaultProjectId={currentProject.id}
+                  triggerLabel="Crear primera tarea"
+                  onCreated={(task) => {
+                    setTasks((prev) => {
+                      const nextTasks = [task, ...prev]
+                      syncProjectProgress(nextTasks)
+                      return nextTasks
+                    })
+                  }}
+                />
               </CardContent>
             </Card>
           )}
         </TabsContent>
 
         <TabsContent value="notes" className="mt-4">
-          <ProjectNotes
-            notes={projectNotes}
-            tasks={tasks}
-            onAddNote={handleAddNote}
-          />
+          <ProjectNotes notes={projectNotes} tasks={tasks} onAddNote={handleAddNote} />
+        </TabsContent>
+
+        <TabsContent value="resources" className="mt-4">
+          <ProjectResourcesMap project={currentProject} resources={resources} />
         </TabsContent>
       </Tabs>
+
+      <TaskDetailPanel
+        task={selectedTask}
+        open={!!selectedTask}
+        onClose={() => setSelectedTask(null)}
+        onAddSubtask={handleAddSubtask}
+        onUpdateSubtask={handleUpdateSubtask}
+        onAddComment={handleAddComment}
+        onAddNote={(taskId, content) => handleAddNote(content, taskId)}
+      />
     </div>
   )
 }

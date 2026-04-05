@@ -64,12 +64,28 @@ export function TaskTable({
             const project = showProject
               ? (projectsById?.[task.projectId] ?? getProjectById(task.projectId))
               : null
+            const clickable = Boolean(onTaskClick)
 
             return (
-              <TableRow key={task.id} className="group">
+              <TableRow
+                key={task.id}
+                className={`group ${clickable ? 'cursor-pointer' : ''}`}
+                tabIndex={clickable ? 0 : undefined}
+                role={clickable ? 'button' : undefined}
+                aria-label={clickable ? `Abrir detalles de ${task.title}` : undefined}
+                onClick={() => onTaskClick?.(task)}
+                onKeyDown={(event) => {
+                  if (!clickable) return
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    onTaskClick?.(task)
+                  }
+                }}
+              >
                 <TableCell>
                   <Checkbox
                     checked={task.status === 'done'}
+                    onClick={(event) => event.stopPropagation()}
                     onCheckedChange={(checked) => {
                       if (onStatusChange) {
                         onStatusChange(task.id, checked ? 'done' : 'todo')
@@ -81,7 +97,11 @@ export function TaskTable({
                 <TableCell>
                   <div className="space-y-1">
                     <button
-                      onClick={() => onTaskClick?.(task)}
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onTaskClick?.(task)
+                      }}
                       className={`font-medium text-left hover:underline cursor-pointer ${
                         task.status === 'done'
                           ? 'text-muted-foreground line-through'
@@ -125,11 +145,12 @@ export function TaskTable({
                     {priorityLabels[task.priority]}
                   </Badge>
                 </TableCell>
-                  {showProject && (
+                {showProject && (
                   <TableCell>
                     {project && (
                       <Link
                         href={`/projects/${project.id}`}
+                        onClick={(event) => event.stopPropagation()}
                         className="text-sm text-muted-foreground hover:text-foreground hover:underline"
                       >
                         {project.name}

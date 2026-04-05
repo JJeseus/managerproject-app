@@ -6,6 +6,7 @@ import {
   Calendar,
   CheckCircle2,
   Circle,
+  FileText,
   MessageSquare,
   Plus,
   Send,
@@ -50,6 +51,7 @@ interface TaskDetailPanelProps {
     patch: { completed?: boolean; result?: SubtaskResult }
   ) => Promise<void>
   onAddComment?: (taskId: string, content: string) => Promise<void>
+  onAddNote?: (taskId: string, content: string) => Promise<void>
 }
 
 const resultIcons: Record<SubtaskResult, ReactNode> = {
@@ -66,11 +68,14 @@ export function TaskDetailPanel({
   onAddSubtask,
   onUpdateSubtask,
   onAddComment,
+  onAddNote,
 }: TaskDetailPanelProps) {
   const [newSubtask, setNewSubtask] = useState('')
   const [newComment, setNewComment] = useState('')
+  const [newNote, setNewNote] = useState('')
   const [isSubmittingSubtask, setIsSubmittingSubtask] = useState(false)
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+  const [isSubmittingNote, setIsSubmittingNote] = useState(false)
   const [updatingSubtaskId, setUpdatingSubtaskId] = useState<string | null>(null)
 
   if (!task) return null
@@ -125,6 +130,17 @@ export function TaskDetailPanel({
       setNewComment('')
     } finally {
       setIsSubmittingComment(false)
+    }
+  }
+
+  const handleAddNote = async () => {
+    if (!newNote.trim() || !onAddNote) return
+    setIsSubmittingNote(true)
+    try {
+      await onAddNote(task.id, newNote.trim())
+      setNewNote('')
+    } finally {
+      setIsSubmittingNote(false)
     }
   }
 
@@ -274,6 +290,32 @@ export function TaskDetailPanel({
                   disabled={!newSubtask.trim() || isSubmittingSubtask}
                 >
                   <Plus className="size-4" />
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <h3 className="flex items-center gap-2 text-sm font-medium">
+                <FileText className="size-4" />
+                Nota vinculada
+              </h3>
+              <div className="space-y-2">
+                <Textarea
+                  placeholder="Escribe una nota vinculada a esta tarea..."
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  className="min-h-[80px] resize-none"
+                />
+                <Button
+                  size="sm"
+                  onClick={() => void handleAddNote()}
+                  disabled={!newNote.trim() || isSubmittingNote || !onAddNote}
+                  className="w-full"
+                >
+                  <FileText className="mr-2 size-4" />
+                  Agregar nota
                 </Button>
               </div>
             </div>
