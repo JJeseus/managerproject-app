@@ -486,31 +486,39 @@ export function QuickCaptureDialog({
         projectId: resourceProjectId === 'none' ? null : resourceProjectId,
       }
 
-      const result = resource
-        ? await executeMutation({
-            action: 'updateResource',
-            payload: {
-              resourceId: resource.id,
-              patch: payload,
-            },
-          })
-        : await executeMutation({
-            action: 'addResource',
-            payload,
-          })
+      if (resource) {
+        const result = await executeMutation({
+          action: 'updateResource',
+          payload: {
+            resourceId: resource.id,
+            patch: payload,
+          },
+        })
+
+        if (!result.ok) {
+          toast.error(result.message)
+          return
+        }
+
+        toast.success('Recurso actualizado')
+        router.refresh()
+        applyForm(result.data.resource)
+        return
+      }
+
+      const result = await executeMutation({
+        action: 'addResource',
+        payload,
+      })
 
       if (!result.ok) {
         toast.error(result.message)
         return
       }
 
-      toast.success(resource ? 'Recurso actualizado' : 'Recurso guardado')
+      toast.success('Recurso guardado')
       router.refresh()
-      if (resource) {
-        applyForm(result.data.resource)
-      } else {
-        resetForm()
-      }
+      resetForm()
     } finally {
       setResourceSaving(false)
     }
