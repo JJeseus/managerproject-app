@@ -2,8 +2,14 @@ import { Header } from '@/components/layout/header'
 import { Card, CardContent } from '@/components/ui/card'
 import { ResourcesView } from '@/components/resources/resources-view'
 import { getResourcesGraphQuery } from '@/lib/db/queries'
+import { parseResourcesViewState } from '@/lib/resources/resources-view-state'
 
-export default async function ResourcesPage() {
+interface ResourcesPageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+export default async function ResourcesPage({ searchParams }: ResourcesPageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
   const resourcesGraphResult = await getResourcesGraphQuery(100).then(
       (graph) => ({ ok: true as const, graph }),
       (error: unknown) => ({
@@ -20,6 +26,7 @@ export default async function ResourcesPage() {
           resources={resourcesGraphResult.graph.resources}
           projects={resourcesGraphResult.graph.projects}
           graphEdges={resourcesGraphResult.graph.edges}
+          initialViewState={parseResourcesViewState(resolvedSearchParams)}
         />
       ) : (
         <div className="p-4 md:p-6">

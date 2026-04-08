@@ -25,11 +25,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { CodePreview } from '@/components/resources/code-preview'
-import { ResourceSourcePreview } from '@/components/resources/resource-source-preview'
+import { ResourceInspector } from '@/components/resources/resource-inspector'
 import { type Project, type Resource, type ResourceStatus, type ResourceType } from '@/lib/data'
 import { formatDateTime } from '@/lib/date'
-import { getGoogleDrivePreview } from '@/lib/google-drive'
 import { cn } from '@/lib/utils'
 
 interface ProjectResourcesMapProps {
@@ -459,6 +457,9 @@ export function ProjectResourcesMap({
             </svg>
 
             <div
+              role="button"
+              tabIndex={0}
+              aria-label={`Enfocar proyecto ${project.name}`}
               className={cn(
                 'absolute rounded-[30px] border bg-white/[0.04] p-6 backdrop-blur-sm transition-all duration-200',
                 normalizedHoveredTech || (highlightedNodeId && highlightedNodeId !== 'project')
@@ -473,6 +474,13 @@ export function ProjectResourcesMap({
               onClick={() => {
                 setActiveNodeId('project')
                 centerNode('project')
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  setActiveNodeId('project')
+                  centerNode('project')
+                }
               }}
               style={{
                 left: positions.project.x,
@@ -546,9 +554,10 @@ export function ProjectResourcesMap({
                         }
                         if (event.key === 'o') {
                           event.preventDefault()
-                          openResource(resource)
+                            openResource(resource)
                         }
                       }}
+                      aria-label={`Enfocar recurso ${resource.title}`}
                       className={cn(
                         'w-full rounded-[26px] border bg-white/[0.05] p-4 text-left backdrop-blur-sm shadow-[0_18px_48px_rgba(0,0,0,0.22)] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20',
                         normalizedHoveredTech
@@ -769,132 +778,16 @@ export function ProjectResourcesMap({
       )}
 
       <Dialog open={!!selectedResource} onOpenChange={(open) => !open && setSelectedResource(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
           {selectedResource && (
             <>
-              <DialogHeader>
-                <div className="flex flex-wrap gap-2">
-                  <Badge
-                    variant="outline"
-                    className={cn('border text-[10px]', resourceTypeColors[selectedResource.type])}
-                  >
-                    {resourceTypeLabels[selectedResource.type]}
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className={cn('border text-[10px]', resourceStatusColors[selectedResource.status])}
-                  >
-                    {resourceStatusLabels[selectedResource.status]}
-                  </Badge>
-                </div>
+              <DialogHeader className="sr-only">
                 <DialogTitle>{selectedResource.title}</DialogTitle>
                 <DialogDescription>
-                  {selectedResource.description || 'Sin descripcion adicional'}
+                  {selectedResource.description || 'Detalle del recurso'}
                 </DialogDescription>
               </DialogHeader>
-
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  {selectedResource.taskId && (
-                    <Badge variant="secondary">{selectedResource.taskId}</Badge>
-                  )}
-                  {selectedResource.language && (
-                    <Badge variant="secondary">{selectedResource.language}</Badge>
-                  )}
-                  {selectedResource.format && !selectedResource.language && (
-                    <Badge variant="secondary">{selectedResource.format}</Badge>
-                  )}
-                  <span>{formatDateTime(selectedResource.timestamp)}</span>
-                </div>
-
-                {selectedResource.sourceUrl && selectedResource.type !== 'code' ? (
-                  <ResourceSourcePreview sourceUrl={selectedResource.sourceUrl} />
-                ) : null}
-
-                {selectedResource.links?.length ? (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                      Enlaza con
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedResource.links.map((link) => (
-                        <Badge key={link.id} variant="outline" className="gap-1">
-                          {link.targetType === 'project'
-                            ? `Proyecto: ${link.targetName}`
-                            : `Recurso: ${link.targetName}`}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                {selectedResource.backlinks?.length ? (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                      Referenciado por
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedResource.backlinks.map((backlink) => (
-                        <Badge key={backlink.id} variant="secondary">
-                          {backlink.sourceResourceTitle}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                {selectedResource.unresolvedLinks?.length ? (
-                  <div className="space-y-2 rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                      Menciones no resueltas
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedResource.unresolvedLinks.map((label) => (
-                        <Badge key={label} variant="outline">
-                          [[{label}]]
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                {selectedResource.content ? (
-                  <CodePreview
-                    code={selectedResource.content}
-                    language={
-                      selectedResource.type === 'code'
-                        ? selectedResource.language || selectedResource.format
-                        : selectedResource.format
-                    }
-                    className="max-h-[420px]"
-                  />
-                ) : (
-                  !getGoogleDrivePreview(selectedResource.sourceUrl) ? (
-                    <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                      Este recurso no tiene contenido embebido para previsualizar.
-                    </div>
-                  ) : null
-                )}
-
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap gap-2">
-                    {selectedResource.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-
-                  {selectedResource.sourceUrl ? (
-                    <Button variant="outline" asChild>
-                      <Link href={selectedResource.sourceUrl} target="_blank" rel="noreferrer">
-                        Abrir enlace
-                        <ExternalLink className="size-4" />
-                      </Link>
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
+              <ResourceInspector resource={selectedResource} project={project} />
             </>
           )}
         </DialogContent>

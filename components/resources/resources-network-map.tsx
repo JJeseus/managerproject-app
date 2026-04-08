@@ -6,7 +6,6 @@ import {
   ChevronRight,
   Code2,
   Crosshair,
-  ExternalLink,
   FileImage,
   FileSpreadsheet,
   FileText,
@@ -20,8 +19,7 @@ import {
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { CodePreview } from '@/components/resources/code-preview'
-import { ResourceSourcePreview } from '@/components/resources/resource-source-preview'
+import { ResourceInspector as SharedResourceInspector } from '@/components/resources/resource-inspector'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   type Project,
@@ -31,7 +29,6 @@ import {
   type ResourceType,
 } from '@/lib/data'
 import { formatDateTime } from '@/lib/date'
-import { getGoogleDrivePreview } from '@/lib/google-drive'
 import { cn } from '@/lib/utils'
 
 interface ResourcesNetworkMapProps {
@@ -309,7 +306,7 @@ function GraphHandle({
   )
 }
 
-function ResourceInspector({
+function CanvasInspector({
   cluster,
   bucket,
   resource,
@@ -324,113 +321,11 @@ function ResourceInspector({
 }) {
   if (resource) {
     return (
-      <div className="space-y-6 p-5">
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline" className={cn('border text-[10px]', resourceTypeColors[resource.type])}>
-              {resourceTypeLabels[resource.type]}
-            </Badge>
-            <Badge variant="outline" className={cn('border text-[10px]', resourceStatusColors[resource.status])}>
-              {resourceStatusLabels[resource.status]}
-            </Badge>
-          </div>
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">Recurso enfocado</p>
-            <h3 className="mt-2 text-xl font-medium tracking-tight text-white">{resource.title}</h3>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">
-              {resource.description || 'Sin descripcion adicional'}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-            {resource.taskId ? <Badge variant="secondary">{resource.taskId}</Badge> : null}
-            {getResourceTech(resource) ? <Badge variant="secondary">{getResourceTech(resource)}</Badge> : null}
-            <span>{formatDateTime(resource.timestamp)}</span>
-          </div>
-        </div>
-
-        {resource.sourceUrl && resource.type !== 'code' ? (
-          <ResourceSourcePreview sourceUrl={resource.sourceUrl} />
-        ) : null}
-
-        {resource.links?.length ? (
-          <div className="space-y-2">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">Enlaza con</p>
-            <div className="flex flex-wrap gap-2">
-              {resource.links.map((link) => (
-                <Badge key={link.id} variant="outline" className="gap-1">
-                  {link.targetType === 'project' ? `Proyecto: ${link.targetName}` : `Recurso: ${link.targetName}`}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {resource.backlinks?.length ? (
-          <div className="space-y-2">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">Referenciado por</p>
-            <div className="flex flex-wrap gap-2">
-              {resource.backlinks.map((backlink) => (
-                <Badge key={backlink.id} variant="secondary">
-                  {backlink.sourceResourceTitle}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {resource.unresolvedLinks?.length ? (
-          <div className="space-y-2 rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-zinc-400">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
-              Menciones no resueltas
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {resource.unresolvedLinks.map((label) => (
-                <Badge key={label} variant="outline">
-                  [[{label}]]
-                </Badge>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {resource.content ? (
-          <CodePreview
-            code={resource.content}
-            language={resource.type === 'code' ? resource.language || resource.format : resource.format}
-            className="max-h-[420px]"
-          />
-        ) : !getGoogleDrivePreview(resource.sourceUrl) ? (
-          <div className="rounded-2xl border border-dashed border-white/10 p-6 text-sm text-zinc-400">
-            Este recurso no tiene contenido embebido para previsualizar.
-          </div>
-        ) : null}
-
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            {resource.tags.map((tag) => (
-              <Badge key={tag} variant="secondary">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {resource.sourceUrl ? (
-              <Button variant="outline" asChild>
-                <Link href={resource.sourceUrl} target="_blank" rel="noreferrer">
-                  Abrir enlace
-                  <ExternalLink className="size-4" />
-                </Link>
-              </Button>
-            ) : null}
-            {cluster?.project ? (
-              <Button variant="outline" asChild>
-                <Link href={`/projects/${cluster.project.id}`}>Ir al proyecto</Link>
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      </div>
+      <SharedResourceInspector
+        resource={resource}
+        project={cluster?.project ?? null}
+        projectHref={cluster?.project ? `/projects/${cluster.project.id}` : undefined}
+      />
     )
   }
 
@@ -1019,6 +914,9 @@ export function ResourcesNetworkMap({ resources, projects, edges }: ResourcesNet
                   return (
                     <div
                       key={cluster.nodeId}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Enfocar proyecto ${cluster.title}`}
                       className={cn(
                         'absolute rounded-[30px] border bg-white/[0.04] p-6 backdrop-blur-sm transition-all duration-200',
                         normalizedHoveredTech
@@ -1037,6 +935,13 @@ export function ResourcesNetworkMap({ resources, projects, edges }: ResourcesNet
                       onClick={() => {
                         focusProject(cluster.nodeId)
                         centerNode(cluster.nodeId)
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          focusProject(cluster.nodeId)
+                          centerNode(cluster.nodeId)
+                        }
                       }}
                       style={{
                         left: projectPositions[cluster.nodeId]?.x ?? PROJECT_START_X,
@@ -1101,6 +1006,9 @@ export function ResourcesNetworkMap({ resources, projects, edges }: ResourcesNet
                       return (
                         <div
                           key={bucket.nodeId}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Abrir grupo ${resourceTypeLabels[bucket.type]}`}
                           className={cn(
                             'absolute rounded-[26px] border bg-white/[0.05] p-4 backdrop-blur-sm transition-all duration-200',
                             normalizedHoveredTech
@@ -1119,6 +1027,13 @@ export function ResourcesNetworkMap({ resources, projects, edges }: ResourcesNet
                           onClick={() => {
                             focusBucket(bucket.key)
                             centerNode(bucket.nodeId)
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              focusBucket(bucket.key)
+                              centerNode(bucket.nodeId)
+                            }
                           }}
                           style={{
                             left: position.x,
@@ -1182,6 +1097,16 @@ export function ResourcesNetworkMap({ resources, projects, edges }: ResourcesNet
                             focusResource(resource.id, activeBucket.key, activeClusterNodeId)
                             centerNode(nodeId)
                           }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              focusResource(resource.id, activeBucket.key, activeClusterNodeId)
+                              centerNode(nodeId)
+                            }
+                          }}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Abrir recurso ${resource.title}`}
                           style={{
                             left: position.x,
                             top: position.y,
@@ -1305,7 +1230,7 @@ export function ResourcesNetworkMap({ resources, projects, edges }: ResourcesNet
 
         <aside className="overflow-hidden rounded-[28px] border border-white/10 bg-[#09090c] shadow-2xl shadow-black/30 xl:sticky xl:top-4 xl:h-[min(80vh,1080px)]">
           <ScrollArea className="h-full">
-            <ResourceInspector
+            <CanvasInspector
               cluster={expandedCluster}
               bucket={activeBucket}
               resource={activeResource}

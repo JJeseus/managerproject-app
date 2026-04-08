@@ -3,6 +3,7 @@ import {
   activities as mockActivities,
   notes as mockNotes,
   projects as mockProjects,
+  resources as mockResources,
   tasks as mockTasks,
 } from '../lib/data'
 import {
@@ -10,6 +11,7 @@ import {
   comments,
   notes,
   projects,
+  resources,
   subtasks,
   tasks,
 } from '../lib/db/schema'
@@ -33,6 +35,7 @@ async function seed() {
     await tx.delete(comments)
     await tx.delete(subtasks)
     await tx.delete(notes)
+    await tx.delete(resources)
     await tx.delete(activities)
     await tx.delete(tasks)
     await tx.delete(projects)
@@ -112,6 +115,25 @@ async function seed() {
         timestamp: parseTimestamp(activity.timestamp),
         projectId: activity.projectId ?? null,
         taskId: activity.taskId ?? null,
+      }))
+    )
+
+    await tx.insert(resources).values(
+      mockResources.map((resource) => ({
+        id: resource.id,
+        projectId: resource.projectId ?? null,
+        taskId: resource.taskId ?? null,
+        title: resource.title,
+        description: resource.description,
+        type: resource.type,
+        language: resource.language,
+        format: resource.format,
+        content: resource.content,
+        sourceUrl: resource.sourceUrl,
+        status: resource.status,
+        tags: resource.tags,
+        createdAt: parseTimestamp(resource.timestamp),
+        updatedAt: parseTimestamp(resource.timestamp),
       }))
     )
   })

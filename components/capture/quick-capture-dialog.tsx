@@ -35,6 +35,12 @@ import {
 import { CodePreview } from '@/components/resources/code-preview'
 import { executeMutation } from '@/lib/client/mutations'
 import { type Project, type Resource, type ResourceStatus, type ResourceType } from '@/lib/data'
+import {
+  detectResourceFormatForType,
+  detectResourceSourceSuggestion,
+  isValidAbsoluteUrl,
+} from '@/lib/resources/resource-format'
+import { resourceStatusLabels, resourceTypeLabels } from '@/lib/resources/resource-presentation'
 
 type ProjectOption = Pick<Project, 'id' | 'name' | 'status'>
 type ResourceOption = Pick<Resource, 'id' | 'title' | 'projectId'>
@@ -184,21 +190,19 @@ function buildResourceForm(resource?: Resource) {
   }
 }
 
-const resourceTypeLabels: Record<ResourceType, string> = {
-  code: 'Código',
-  document: 'Documento',
-  spreadsheet: 'Hoja de cálculo',
-  dataset: 'Datos',
-  link: 'Enlace',
-  image: 'Imagen',
-  other: 'Otro',
-}
-
-const resourceStatusLabels: Record<ResourceStatus, string> = {
-  draft: 'Borrador',
-  ready: 'Listo',
-  applied: 'Aplicado',
-  archived: 'Archivado',
+function serializeFormSnapshot(form: ReturnType<typeof buildResourceForm>) {
+  return JSON.stringify({
+    resourceProjectId: form.resourceProjectId,
+    resourceTitle: form.resourceTitle,
+    resourceDescription: form.resourceDescription,
+    resourceType: form.resourceType,
+    resourceLanguage: form.resourceLanguage,
+    resourceFormat: form.resourceFormat,
+    resourceSourceUrl: form.resourceSourceUrl,
+    resourceContent: form.resourceContent,
+    resourceStatus: form.resourceStatus,
+    resourceTags: form.resourceTags,
+  })
 }
 
 function isSupportedCodeLanguage(language: string): language is SupportedCodeLanguage {
@@ -255,8 +259,32 @@ export function QuickCaptureDialog({
   const [resourceStatus, setResourceStatus] = useState<ResourceStatus>(initialForm.resourceStatus)
   const [resourceTags, setResourceTags] = useState(initialForm.resourceTags)
   const [resourceSaving, setResourceSaving] = useState(false)
+  const [resourceFormatMode, setResourceFormatMode] = useState<'default' | 'manual' | 'auto'>('default')
+  const [baselineSnapshot, setBaselineSnapshot] = useState(() => serializeFormSnapshot(initialForm))
 
   const isCodeResource = resourceType === 'code'
+  const normalizedSourceUrl = resourceSourceUrl.trim()
+  const sourceSuggestion = !isCodeResource
+    ? detectResourceSourceSuggestion(normalizedSourceUrl)
+    : null
+  const sourceUrlError = !isCodeResource && normalizedSourceUrl && !isValidAbsoluteUrl(normalizedSourceUrl)
+    ? 'Escribe una URL completa que empiece con http:// o https://.'
+    : null
+
+  const currentSnapshot = JSON.stringify({
+    resourceProjectId,
+    resourceTitle,
+    resourceDescription,
+    resourceType,
+    resourceLanguage,
+    resourceFormat,
+    resourceSourceUrl,
+    resourceContent,
+    resourceStatus,
+    resourceTags,
+  })
+
+  const isDirty = baselineSnapshot !== currentSnapshot
 
   const applyForm = (nextResource?: Resource) => {
     const nextForm = buildResourceForm(nextResource)
@@ -273,10 +301,21 @@ export function QuickCaptureDialog({
     setResourceContent(nextForm.resourceContent)
     setResourceStatus(nextForm.resourceStatus)
     setResourceTags(nextForm.resourceTags)
+    setResourceFormatMode('default')
+    setLinkAutocomplete(null)
+    setBaselineSnapshot(serializeFormSnapshot(nextForm))
   }
 
   const resetForm = () => {
     applyForm(resource)
+  }
+
+  const canDiscardChanges = () => {
+    if (!isDirty || typeof window === 'undefined') {
+      return true
+    }
+
+    return window.confirm('Hay cambios sin guardar. ¿Quieres descartarlos?')
   }
 
   const loadProjects = useCallback(async () => {
@@ -290,18 +329,13 @@ export function QuickCaptureDialog({
       if (payload.ok) {
         setProjects(payload.data.projects)
         setResourceOptions(payload.data.resources)
-        setResourceProjectId((current) =>
-          current === 'none' && !resource?.projectId
-            ? payload.data.projects[0]?.id || 'none'
-            : current
-        )
       }
     } catch {
       // Si falla, el usuario todavía puede crear recursos sin proyecto.
     } finally {
       setLoadingProjects(false)
     }
-  }, [resource?.projectId])
+  }, [])
 
   const addCustomLanguage = async () => {
     const normalized = newLanguage.trim().toLowerCase()
@@ -364,8 +398,24 @@ export function QuickCaptureDialog({
 
     if (!currentIsValid) {
       setResourceFormat(nextDefault)
+      setResourceFormatMode('default')
     }
   }, [resourceFormat, resourceType])
+
+  useEffect(() => {
+    if (resourceType === 'code' || resourceFormatMode === 'manual') {
+      return
+    }
+
+    const detectedFormat = detectResourceFormatForType(resourceSourceUrl, resourceType)
+
+    if (!detectedFormat || detectedFormat === resourceFormat) {
+      return
+    }
+
+    setResourceFormat(detectedFormat)
+    setResourceFormatMode('auto')
+  }, [resourceFormat, resourceFormatMode, resourceSourceUrl, resourceType])
 
   const linkableOptions: LinkableOption[] = [
     ...projects.map((project) => ({
@@ -464,6 +514,11 @@ export function QuickCaptureDialog({
       return
     }
 
+    if (sourceUrlError) {
+      toast.error(sourceUrlError)
+      return
+    }
+
     const formattedContent = isCodeResource
       ? await formatCodeContent(resourceContent, resourceLanguage)
       : resourceContent.trim()
@@ -503,6 +558,7 @@ export function QuickCaptureDialog({
         toast.success('Recurso actualizado')
         router.refresh()
         applyForm(result.data.resource)
+        setOpen(false)
         return
       }
 
@@ -519,6 +575,7 @@ export function QuickCaptureDialog({
       toast.success('Recurso guardado')
       router.refresh()
       resetForm()
+      setOpen(false)
     } finally {
       setResourceSaving(false)
     }
@@ -549,8 +606,14 @@ export function QuickCaptureDialog({
     <Dialog
       open={open}
       onOpenChange={(value) => {
+        if (!value && !canDiscardChanges()) {
+          return
+        }
+
         setOpen(value)
-        if (!value) resetForm()
+        if (!value) {
+          resetForm()
+        }
       }}
     >
       <DialogTrigger asChild>
@@ -572,7 +635,7 @@ export function QuickCaptureDialog({
         <form className="space-y-5" onSubmit={(e) => void handleResourceSubmit(e)}>
           <div className="space-y-4 rounded-2xl border border-border/60 bg-muted/20 p-4">
             <div className="space-y-1">
-              <h4 className="text-sm font-medium">Datos base</h4>
+              <h4 className="text-sm font-medium">1. Datos base</h4>
               <p className="text-xs text-muted-foreground">
                 Define el recurso, su proyecto principal y la categoría correcta.
               </p>
@@ -656,7 +719,7 @@ export function QuickCaptureDialog({
           {isCodeResource ? (
             <div className="space-y-4 rounded-2xl border border-border/60 bg-muted/20 p-4">
               <div className="space-y-1">
-                <h4 className="text-sm font-medium">Configuración técnica</h4>
+                <h4 className="text-sm font-medium">2. Configuración técnica</h4>
                 <p className="text-xs text-muted-foreground">
                   Selecciona el lenguaje y pega el contenido para obtener vista previa y formato.
                 </p>
@@ -706,7 +769,7 @@ export function QuickCaptureDialog({
           ) : (
             <div className="space-y-4 rounded-2xl border border-border/60 bg-muted/20 p-4">
               <div className="space-y-1">
-                <h4 className="text-sm font-medium">Fuente del recurso</h4>
+                <h4 className="text-sm font-medium">2. Fuente del recurso</h4>
                 <p className="text-xs text-muted-foreground">
                   Usa listas controladas para clasificar documentos y enlaces frecuentes como Google Drive.
                 </p>
@@ -717,7 +780,13 @@ export function QuickCaptureDialog({
                   <label className="text-sm font-medium">
                     {resourceFormatFieldLabels[resourceType]}
                   </label>
-                  <Select value={resourceFormat} onValueChange={setResourceFormat}>
+                  <Select
+                    value={resourceFormat}
+                    onValueChange={(value) => {
+                      setResourceFormat(value)
+                      setResourceFormatMode('manual')
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder={resourceFormatFieldLabels[resourceType]} />
                     </SelectTrigger>
@@ -737,6 +806,7 @@ export function QuickCaptureDialog({
                   </label>
                   <Input
                     id="resource-url"
+                    type="url"
                     value={resourceSourceUrl}
                     onChange={(event) => setResourceSourceUrl(event.target.value)}
                     placeholder={
@@ -744,7 +814,27 @@ export function QuickCaptureDialog({
                         ? 'https://drive.google.com/...'
                         : 'https://...'
                     }
+                    aria-invalid={Boolean(sourceUrlError)}
                   />
+                  {sourceUrlError ? (
+                    <p className="text-xs text-destructive">{sourceUrlError}</p>
+                  ) : sourceSuggestion ? (
+                    <p className="text-xs text-muted-foreground">
+                      Detección automática:{' '}
+                      <span className="font-medium text-foreground">
+                        {resourceTypeLabels[sourceSuggestion.type]} / {sourceSuggestion.format}
+                      </span>
+                      {sourceSuggestion.type !== resourceType
+                        ? ` · la URL parece pertenecer a otro tipo de recurso.`
+                        : resourceFormatMode === 'auto'
+                          ? ' · se aplicó ese formato al recurso.'
+                          : ''}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Usa una URL completa para habilitar detección de origen y preview.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -752,7 +842,7 @@ export function QuickCaptureDialog({
 
           <div className="space-y-4 rounded-2xl border border-border/60 bg-muted/20 p-4">
             <div className="space-y-1">
-              <h4 className="text-sm font-medium">Contexto y enlaces</h4>
+              <h4 className="text-sm font-medium">3. Contexto y enlaces</h4>
               <p className="text-xs text-muted-foreground">
                 Describe el recurso y enlaza entidades con <code className="rounded bg-background px-1 py-0.5">[[...]]</code>. Usa <code className="rounded bg-background px-1 py-0.5">#tag</code> para etiquetas.
               </p>
@@ -807,7 +897,7 @@ export function QuickCaptureDialog({
           <div className="space-y-4 rounded-2xl border border-border/60 bg-muted/20 p-4">
             <div className="space-y-1">
               <h4 className="text-sm font-medium">
-                {isCodeResource ? 'Código fuente' : 'Contenido o resumen'}
+                {isCodeResource ? '4. Código fuente' : '4. Contenido o resumen'}
               </h4>
               <p className="text-xs text-muted-foreground">
                 {isCodeResource
@@ -892,7 +982,7 @@ export function QuickCaptureDialog({
 
           <div className="space-y-4 rounded-2xl border border-border/60 bg-muted/20 p-4">
             <div className="space-y-1">
-              <h4 className="text-sm font-medium">Etiquetas</h4>
+              <h4 className="text-sm font-medium">5. Etiquetas</h4>
               <p className="text-xs text-muted-foreground">
                 Puedes seguir escribiéndolas manualmente; también se extraen desde <code className="rounded bg-background px-1 py-0.5">#tag</code>.
               </p>
