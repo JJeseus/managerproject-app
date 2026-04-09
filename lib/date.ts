@@ -18,3 +18,7 @@ export function formatDistanceToNowEs(value: Date | string) {
   const date = typeof value === 'string' ? parseISO(value) : value
   return formatDistanceToNow(date, { addSuffix: true, locale: es })
 }
+
+export function formatDateInputValue(value = new Date()) {
+  return format(value, 'yyyy-MM-dd')
+}

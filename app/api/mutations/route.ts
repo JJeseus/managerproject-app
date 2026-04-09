@@ -4,11 +4,20 @@ import { mutationRequestSchema, type ApiResult } from '@/lib/db/contracts'
 import {
   addComment,
   addNote,
+  addRoadmapItem,
+  addResource,
   addSubtask,
+  assignTaskToRoadmapItem,
+  createProject,
   createTask,
+  deleteRoadmapItem,
   deleteTask,
   isMutationError,
+  reorderRoadmapItems,
+  unassignTaskFromRoadmapItem,
   updateProject,
+  updateRoadmapItem,
+  updateResource,
   updateSubtask,
   updateTask,
   updateTaskStatus,
@@ -36,8 +45,12 @@ export async function POST(request: Request) {
     const parsed = mutationRequestSchema.parse(body)
 
     switch (parsed.action) {
+      case 'createProject':
+        return NextResponse.json({ ok: true, data: await createProject(parsed.payload) })
       case 'createTask':
         return NextResponse.json({ ok: true, data: await createTask(parsed.payload) })
+      case 'addRoadmapItem':
+        return NextResponse.json({ ok: true, data: await addRoadmapItem(parsed.payload) })
       case 'updateTask':
         return NextResponse.json({ ok: true, data: await updateTask(parsed.payload) })
       case 'deleteTask':
@@ -58,10 +71,42 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true, data: await addComment(parsed.payload) })
       case 'addNote':
         return NextResponse.json({ ok: true, data: await addNote(parsed.payload) })
+      case 'assignTaskToRoadmapItem':
+        return NextResponse.json({
+          ok: true,
+          data: await assignTaskToRoadmapItem(parsed.payload),
+        })
+      case 'addResource':
+        return NextResponse.json({ ok: true, data: await addResource(parsed.payload) })
+      case 'deleteRoadmapItem':
+        return NextResponse.json({
+          ok: true,
+          data: await deleteRoadmapItem(parsed.payload),
+        })
+      case 'reorderRoadmapItems':
+        return NextResponse.json({
+          ok: true,
+          data: await reorderRoadmapItems(parsed.payload),
+        })
+      case 'unassignTaskFromRoadmapItem':
+        return NextResponse.json({
+          ok: true,
+          data: await unassignTaskFromRoadmapItem(parsed.payload),
+        })
+      case 'updateResource':
+        return NextResponse.json({
+          ok: true,
+          data: await updateResource(parsed.payload),
+        })
       case 'updateProject':
         return NextResponse.json({
           ok: true,
           data: await updateProject(parsed.payload),
+        })
+      case 'updateRoadmapItem':
+        return NextResponse.json({
+          ok: true,
+          data: await updateRoadmapItem(parsed.payload),
         })
       default:
         return errorResponse(400, 'INVALID_ACTION', 'Acción no soportada.')

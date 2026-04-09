@@ -15,7 +15,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     notFound()
   }
 
-  const { project, tasks, notes } = projectData
+  const { project, tasks, notes, resources, roadmapItems } = projectData
 
   return (
     <>
@@ -27,7 +27,13 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         ]}
       />
       <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-        <ProjectDetail project={project} initialTasks={tasks} notes={notes} />
+        <ProjectDetail
+          project={project}
+          initialTasks={tasks}
+          notes={notes}
+          resources={resources}
+          roadmapItems={roadmapItems}
+        />
       </div>
     </>
   )

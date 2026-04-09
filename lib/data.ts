@@ -2,6 +2,7 @@
 export type ProjectStatus = 'planning' | 'active' | 'on-hold' | 'completed'
 export type Priority = 'low' | 'medium' | 'high'
 export type TaskStatus = 'todo' | 'in-progress' | 'blocked' | 'done'
+export type RoadmapStatus = 'planned' | 'in-progress' | 'completed'
 
 export interface Project {
   id: string
@@ -14,6 +15,19 @@ export interface Project {
   dueDate: string
   progress: number
   tags: string[]
+}
+
+export interface RoadmapItem {
+  id: string
+  projectId: string
+  title: string
+  description: string
+  status: RoadmapStatus
+  position: number
+  startDate?: string
+  dueDate?: string
+  createdAt: string
+  updatedAt: string
 }
 
 export type SubtaskResult = 'pending' | 'pass' | 'fail'
@@ -42,6 +56,7 @@ export interface Task {
   priority: Priority
   dueDate: string
   tags: string[]
+  roadmapItemId?: string
   subtasks?: Subtask[]
   comments?: Comment[]
 }
@@ -54,9 +69,80 @@ export interface Note {
   timestamp: string
 }
 
+export type ResourceType =
+  | 'code'
+  | 'document'
+  | 'spreadsheet'
+  | 'dataset'
+  | 'link'
+  | 'image'
+  | 'other'
+
+export type ResourceStatus = 'draft' | 'ready' | 'applied' | 'archived'
+export type ResourceLinkTargetType = 'project' | 'resource'
+
+export interface ResourceLink {
+  id: string
+  sourceResourceId: string
+  targetType: ResourceLinkTargetType
+  targetId: string
+  targetName: string
+  label?: string
+  createdAt: string
+}
+
+export interface ResourceBacklink {
+  id: string
+  sourceResourceId: string
+  sourceResourceTitle: string
+  sourceProjectId?: string
+  sourceProjectName?: string
+  label?: string
+  createdAt: string
+}
+
+export type ResourceGraphEdgeKind =
+  | 'primary-project'
+  | 'explicit-project'
+  | 'explicit-resource'
+
+export interface ResourceGraphEdge {
+  id: string
+  sourceType: ResourceLinkTargetType
+  sourceId: string
+  targetType: ResourceLinkTargetType
+  targetId: string
+  kind: ResourceGraphEdgeKind
+  label?: string
+}
+
+export interface Resource {
+  id: string
+  projectId?: string
+  taskId?: string
+  title: string
+  content: string
+  description: string
+  type: ResourceType
+  language: string
+  format: string
+  sourceUrl: string
+  status: ResourceStatus
+  tags: string[]
+  timestamp: string
+  links?: ResourceLink[]
+  backlinks?: ResourceBacklink[]
+  unresolvedLinks?: string[]
+}
+
 export interface Activity {
   id: string
-  type: 'task_created' | 'task_completed' | 'project_updated' | 'note_added' | 'status_changed'
+  type:
+    | 'task_created'
+    | 'task_completed'
+    | 'project_updated'
+    | 'note_added'
+    | 'status_changed'
   description: string
   timestamp: string
   projectId?: string
@@ -150,6 +236,7 @@ export const tasks: Task[] = [
     priority: 'high',
     dueDate: '2026-03-15',
     tags: ['diseño', 'ui'],
+    roadmapItemId: 'roadmap-1',
   },
   {
     id: 'task-2',
@@ -160,6 +247,7 @@ export const tasks: Task[] = [
     priority: 'high',
     dueDate: '2026-03-20',
     tags: ['frontend', 'componente'],
+    roadmapItemId: 'roadmap-2',
   },
   {
     id: 'task-3',
@@ -170,6 +258,7 @@ export const tasks: Task[] = [
     priority: 'medium',
     dueDate: '2026-04-05',
     tags: ['frontend', 'componente'],
+    roadmapItemId: 'roadmap-2',
     subtasks: [
       { id: 'st-1', title: 'Agregar estructura HTML base', completed: true, result: 'fail', resultNote: 'El snippet está mal formateado y requiere revisión' },
       { id: 'st-2', title: 'Estilizar footer con Tailwind CSS', completed: false, result: 'pending' },
@@ -190,6 +279,7 @@ export const tasks: Task[] = [
     priority: 'medium',
     dueDate: '2026-04-10',
     tags: ['frontend', 'formularios'],
+    roadmapItemId: 'roadmap-3',
   },
   {
     id: 'task-5',
@@ -211,6 +301,7 @@ export const tasks: Task[] = [
     priority: 'high',
     dueDate: '2026-02-20',
     tags: ['configuración', 'móvil'],
+    roadmapItemId: 'roadmap-4',
   },
   {
     id: 'task-7',
@@ -221,6 +312,7 @@ export const tasks: Task[] = [
     priority: 'high',
     dueDate: '2026-03-25',
     tags: ['navegación', 'móvil'],
+    roadmapItemId: 'roadmap-4',
   },
   {
     id: 'task-8',
@@ -231,6 +323,7 @@ export const tasks: Task[] = [
     priority: 'high',
     dueDate: '2026-04-01',
     tags: ['auth', 'seguridad'],
+    roadmapItemId: 'roadmap-5',
     subtasks: [
       { id: 'st-5', title: 'Crear UI de inicio de sesión', completed: true, result: 'pass' },
       { id: 'st-6', title: 'Crear UI de registro', completed: true, result: 'pass' },
@@ -252,6 +345,7 @@ export const tasks: Task[] = [
     priority: 'medium',
     dueDate: '2026-04-15',
     tags: ['ui', 'dashboard'],
+    roadmapItemId: 'roadmap-5',
   },
   {
     id: 'task-10',
@@ -262,6 +356,7 @@ export const tasks: Task[] = [
     priority: 'medium',
     dueDate: '2026-04-20',
     tags: ['notificaciones', 'backend'],
+    roadmapItemId: 'roadmap-5',
   },
   // Tareas: integración de APIs
   {
@@ -273,6 +368,7 @@ export const tasks: Task[] = [
     priority: 'high',
     dueDate: '2026-04-05',
     tags: ['investigación', 'pagos'],
+    roadmapItemId: 'roadmap-6',
   },
   {
     id: 'task-12',
@@ -283,6 +379,7 @@ export const tasks: Task[] = [
     priority: 'medium',
     dueDate: '2026-04-20',
     tags: ['documentación', 'api'],
+    roadmapItemId: 'roadmap-7',
   },
   // Tareas: documentación
   {
@@ -294,6 +391,7 @@ export const tasks: Task[] = [
     priority: 'low',
     dueDate: '2026-04-10',
     tags: ['documentación'],
+    roadmapItemId: 'roadmap-8',
   },
   // Tareas: rendimiento
   {
@@ -305,6 +403,7 @@ export const tasks: Task[] = [
     priority: 'high',
     dueDate: '2026-03-25',
     tags: ['análisis', 'rendimiento'],
+    roadmapItemId: 'roadmap-9',
   },
   {
     id: 'task-15',
@@ -315,6 +414,7 @@ export const tasks: Task[] = [
     priority: 'high',
     dueDate: '2026-04-05',
     tags: ['optimización', 'frontend'],
+    roadmapItemId: 'roadmap-10',
     subtasks: [
       { id: 'st-10', title: 'Configurar bundling para code splitting', completed: true, result: 'pass' },
       { id: 'st-11', title: 'Agregar lazy loading por ruta', completed: true, result: 'pass' },
@@ -333,6 +433,7 @@ export const tasks: Task[] = [
     priority: 'medium',
     dueDate: '2026-04-12',
     tags: ['infraestructura', 'caché'],
+    roadmapItemId: 'roadmap-10',
   },
   {
     id: 'task-17',
@@ -343,6 +444,7 @@ export const tasks: Task[] = [
     priority: 'high',
     dueDate: '2026-04-10',
     tags: ['base-datos', 'backend'],
+    roadmapItemId: 'roadmap-11',
   },
   // Tareas adicionales
   {
@@ -354,6 +456,7 @@ export const tasks: Task[] = [
     priority: 'medium',
     dueDate: '2026-04-08',
     tags: ['investigación', 'ux'],
+    roadmapItemId: 'roadmap-1',
   },
   {
     id: 'task-19',
@@ -364,6 +467,7 @@ export const tasks: Task[] = [
     priority: 'low',
     dueDate: '2026-05-01',
     tags: ['testing', 'analítica'],
+    roadmapItemId: 'roadmap-5',
   },
   {
     id: 'task-20',
@@ -374,6 +478,7 @@ export const tasks: Task[] = [
     priority: 'high',
     dueDate: '2026-02-15',
     tags: ['seguridad', 'infraestructura'],
+    roadmapItemId: 'roadmap-12',
   },
 ]
 
@@ -497,6 +602,254 @@ export const notes: Note[] = [
   },
 ]
 
+export const resources: Resource[] = [
+  {
+    id: 'res-1',
+    projectId: 'proj-1',
+    taskId: 'task-3',
+    title: 'Footer base en HTML',
+    description: 'Estructura HTML utilizada para el footer del rediseño. Referencia a [[Integración de APIs]] y #html.',
+    type: 'code',
+    language: 'html',
+    format: 'html',
+    content:
+      '<footer class="border-t py-6"><div class="mx-auto max-w-6xl px-4">...</div></footer>\n<!-- Compartido con [[Especificación de integración]] y #ui -->',
+    sourceUrl: '',
+    status: 'applied',
+    tags: ['html', 'footer', 'ui'],
+    timestamp: '2026-04-04T08:00:00Z',
+  },
+  {
+    id: 'res-2',
+    projectId: 'proj-3',
+    title: 'Especificación de integración',
+    description: 'Resumen de requisitos para la integración de pagos y analítica. Depende de [[Rediseño del sitio web]] y #api.',
+    type: 'document',
+    language: '',
+    format: 'pdf',
+    content: 'Checklist de integracion para [[Footer base en HTML]] y despliegue de #pagos.',
+    sourceUrl: 'https://example.com/especificacion-integracion.pdf',
+    status: 'ready',
+    tags: ['pdf', 'requisitos', 'pagos'],
+    timestamp: '2026-04-03T18:30:00Z',
+  },
+  {
+    id: 'res-3',
+    projectId: 'proj-6',
+    title: 'Muestra de métricas',
+    description: 'Exportación de métricas base para comparar optimizaciones. Cruza datos con [[Integración de APIs]] y #csv.',
+    type: 'dataset',
+    language: '',
+    format: 'csv',
+    content:
+      'pagina,tiempo_carga,lcp,cls\ninicio,2.8,2.1,0.08\nproyecto,3.4,2.9,0.12',
+    sourceUrl: '',
+    status: 'draft',
+    tags: ['csv', 'metricas', 'rendimiento'],
+    timestamp: '2026-04-02T12:15:00Z',
+  },
+  {
+    id: 'res-4',
+    projectId: 'proj-2',
+    title: 'AppSheet flujo de captura',
+    description: 'Automatización del formulario móvil con #appsheet enlazada a [[Integración de APIs]].',
+    type: 'code',
+    language: 'appsheet',
+    format: 'appsheet',
+    content: 'LINKTOROW([_THISROW], "Detalle")\n/* conecta con [[Especificación de integración]] */',
+    sourceUrl: '',
+    status: 'draft',
+    tags: ['appsheet', 'movil'],
+    timestamp: '2026-04-05T00:10:00Z',
+  },
+]
+
+export const resourceLinks: ResourceLink[] = [
+  {
+    id: 'res-link-1',
+    sourceResourceId: 'res-1',
+    targetType: 'project',
+    targetId: 'proj-3',
+    targetName: 'Integración de APIs',
+    label: 'Integración de APIs',
+    createdAt: '2026-04-04T08:00:00Z',
+  },
+  {
+    id: 'res-link-2',
+    sourceResourceId: 'res-1',
+    targetType: 'resource',
+    targetId: 'res-2',
+    targetName: 'Especificación de integración',
+    label: 'Especificación de integración',
+    createdAt: '2026-04-04T08:00:00Z',
+  },
+  {
+    id: 'res-link-3',
+    sourceResourceId: 'res-3',
+    targetType: 'project',
+    targetId: 'proj-3',
+    targetName: 'Integración de APIs',
+    label: 'Integración de APIs',
+    createdAt: '2026-04-02T12:15:00Z',
+  },
+  {
+    id: 'res-link-4',
+    sourceResourceId: 'res-4',
+    targetType: 'resource',
+    targetId: 'res-2',
+    targetName: 'Especificación de integración',
+    label: 'Especificación de integración',
+    createdAt: '2026-04-05T00:10:00Z',
+  },
+]
+
+export const roadmapItems: RoadmapItem[] = [
+  {
+    id: 'roadmap-1',
+    projectId: 'proj-1',
+    title: 'Descubrimiento y feedback',
+    description: 'Recopilar hallazgos y confirmar dirección visual antes de cerrar sprint.',
+    status: 'in-progress',
+    position: 1,
+    startDate: '2026-03-28',
+    dueDate: '2026-04-08',
+    createdAt: '2026-03-28T09:00:00Z',
+    updatedAt: '2026-04-03T14:45:00Z',
+  },
+  {
+    id: 'roadmap-2',
+    projectId: 'proj-1',
+    title: 'Construcción de layout base',
+    description: 'Navegación, footer y estructura principal del sitio.',
+    status: 'in-progress',
+    position: 2,
+    startDate: '2026-03-10',
+    dueDate: '2026-04-05',
+    createdAt: '2026-03-10T09:00:00Z',
+    updatedAt: '2026-04-04T08:00:00Z',
+  },
+  {
+    id: 'roadmap-3',
+    projectId: 'proj-1',
+    title: 'Captura y conversión',
+    description: 'Formularios y puntos de contacto que convierten visitas en leads.',
+    status: 'planned',
+    position: 3,
+    startDate: '2026-04-06',
+    dueDate: '2026-04-15',
+    createdAt: '2026-03-28T09:00:00Z',
+    updatedAt: '2026-03-28T09:00:00Z',
+  },
+  {
+    id: 'roadmap-4',
+    projectId: 'proj-2',
+    title: 'Fundación móvil',
+    description: 'Base técnica y navegación principal de la aplicación.',
+    status: 'in-progress',
+    position: 1,
+    startDate: '2026-02-15',
+    dueDate: '2026-03-25',
+    createdAt: '2026-02-15T09:00:00Z',
+    updatedAt: '2026-03-25T10:00:00Z',
+  },
+  {
+    id: 'roadmap-5',
+    projectId: 'proj-2',
+    title: 'Experiencia de acceso y dashboard',
+    description: 'Autenticación, home principal y notificaciones.',
+    status: 'in-progress',
+    position: 2,
+    startDate: '2026-03-25',
+    dueDate: '2026-05-01',
+    createdAt: '2026-03-25T09:00:00Z',
+    updatedAt: '2026-04-02T11:20:00Z',
+  },
+  {
+    id: 'roadmap-6',
+    projectId: 'proj-3',
+    title: 'Evaluación de proveedores',
+    description: 'Comparar integraciones de pago y validar alcance.',
+    status: 'in-progress',
+    position: 1,
+    startDate: '2026-04-01',
+    dueDate: '2026-04-08',
+    createdAt: '2026-04-01T09:00:00Z',
+    updatedAt: '2026-04-03T09:15:00Z',
+  },
+  {
+    id: 'roadmap-7',
+    projectId: 'proj-3',
+    title: 'Documentación y adopción',
+    description: 'Definir contratos, documentación y siguiente fase de implementación.',
+    status: 'planned',
+    position: 2,
+    startDate: '2026-04-08',
+    dueDate: '2026-04-22',
+    createdAt: '2026-04-01T09:00:00Z',
+    updatedAt: '2026-04-01T09:00:00Z',
+  },
+  {
+    id: 'roadmap-8',
+    projectId: 'proj-4',
+    title: 'Actualización base',
+    description: 'Renovar contenido principal y la guía de inicio.',
+    status: 'planned',
+    position: 1,
+    startDate: '2026-04-01',
+    dueDate: '2026-04-15',
+    createdAt: '2026-04-01T09:00:00Z',
+    updatedAt: '2026-04-01T09:00:00Z',
+  },
+  {
+    id: 'roadmap-9',
+    projectId: 'proj-6',
+    title: 'Diagnóstico',
+    description: 'Medir estado actual y priorizar cuellos de botella.',
+    status: 'completed',
+    position: 1,
+    startDate: '2026-03-20',
+    dueDate: '2026-03-28',
+    createdAt: '2026-03-20T09:00:00Z',
+    updatedAt: '2026-03-25T16:00:00Z',
+  },
+  {
+    id: 'roadmap-10',
+    projectId: 'proj-6',
+    title: 'Entrega frontend',
+    description: 'Reducir bundle, cargar menos JavaScript y optimizar assets.',
+    status: 'in-progress',
+    position: 2,
+    startDate: '2026-03-28',
+    dueDate: '2026-04-12',
+    createdAt: '2026-03-28T09:00:00Z',
+    updatedAt: '2026-04-01T11:00:00Z',
+  },
+  {
+    id: 'roadmap-11',
+    projectId: 'proj-6',
+    title: 'Optimización backend',
+    description: 'Resolver consultas lentas y puntos críticos de datos.',
+    status: 'planned',
+    position: 3,
+    startDate: '2026-04-08',
+    dueDate: '2026-04-15',
+    createdAt: '2026-04-01T09:00:00Z',
+    updatedAt: '2026-04-01T09:00:00Z',
+  },
+  {
+    id: 'roadmap-12',
+    projectId: 'proj-5',
+    title: 'Mitigación inmediata',
+    description: 'Escaneo, certificados y cierre de vulnerabilidades urgentes.',
+    status: 'completed',
+    position: 1,
+    startDate: '2026-01-10',
+    dueDate: '2026-02-15',
+    createdAt: '2026-01-10T09:00:00Z',
+    updatedAt: '2026-02-15T09:00:00Z',
+  },
+]
+
 // Helper functions
 export function getProjects(): Project[] {
   return projects
@@ -518,6 +871,12 @@ export function getTaskById(id: string): Task | undefined {
   return tasks.find((t) => t.id === id)
 }
 
+export function getRoadmapItemsByProjectId(projectId: string): RoadmapItem[] {
+  return roadmapItems
+    .filter((item) => item.projectId === projectId)
+    .sort((left, right) => left.position - right.position)
+}
+
 export function getActivities(limit?: number): Activity[] {
   const sorted = [...activities].sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
@@ -527,6 +886,26 @@ export function getActivities(limit?: number): Activity[] {
 
 export function getNotesByProjectId(projectId: string): Note[] {
   return notes.filter((n) => n.projectId === projectId)
+}
+
+export function getResources(): Resource[] {
+  return [...resources].sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  )
+}
+
+export function getResourcesByProjectId(projectId: string): Resource[] {
+  return getResources().filter((resource) => resource.projectId === projectId)
+}
+
+export function getRecentResources(limit = 5): Resource[] {
+  return getResources().slice(0, limit)
+}
+
+export function getResourceLinks(): ResourceLink[] {
+  return [...resourceLinks].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  )
 }
 
 // Stats helpers
@@ -602,6 +981,18 @@ export const taskStatusLabels: Record<TaskStatus, string> = {
   'in-progress': 'En progreso',
   blocked: 'Bloqueada',
   done: 'Hecha',
+}
+
+export const roadmapStatusColors: Record<RoadmapStatus, string> = {
+  planned: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
+  'in-progress': 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+  completed: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+}
+
+export const roadmapStatusLabels: Record<RoadmapStatus, string> = {
+  planned: 'Planeada',
+  'in-progress': 'En progreso',
+  completed: 'Completada',
 }
 
 export const priorityLabels: Record<Priority, string> = {

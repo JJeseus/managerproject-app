@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { LayoutGrid, List, Plus, Search } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { LayoutGrid, List, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -12,6 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { CreateProjectDialog } from '@/components/projects/create-project-dialog'
 import { ProjectCard } from './project-card'
 import { ProjectTable } from './project-table'
 import { type Project, type ProjectStatus } from '@/lib/data'
@@ -88,10 +88,7 @@ export function ProjectList({ projects, taskCountsByProject }: ProjectListProps)
             </ToggleGroupItem>
           </ToggleGroup>
 
-          <Button size="sm" className="gap-1" disabled>
-            <Plus className="size-4" />
-            <span className="hidden sm:inline">No disponible</span>
-          </Button>
+          <CreateProjectDialog />
         </div>
       </div>
 
@@ -115,10 +112,9 @@ export function ProjectList({ projects, taskCountsByProject }: ProjectListProps)
       {filteredProjects.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12">
           <p className="text-muted-foreground">No se encontraron proyectos</p>
-          <Button variant="outline" size="sm" className="mt-4" disabled>
-            <Plus className="mr-2 size-4" />
-            No disponible
-          </Button>
+          <div className="mt-4">
+            <CreateProjectDialog />
+          </div>
         </div>
       )}
     </div>

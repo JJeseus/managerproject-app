@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Kanban, List, Plus, Search } from 'lucide-react'
+import { endOfWeek, isAfter, isBefore, isSameDay, startOfDay } from 'date-fns'
+import { Kanban, List, Search } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -15,6 +15,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { executeMutation } from '@/lib/client/mutations'
 import { type Priority, type Project, type Task, type TaskStatus } from '@/lib/data'
+import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
 import { KanbanBoard } from './kanban-board'
 import { TaskDetailPanel } from './task-detail-panel'
 import { TaskTable } from './task-table'
@@ -26,13 +27,13 @@ interface TasksViewProps {
 
 export function TasksView({ initialTasks, projects }: TasksViewProps) {
   const [view, setView] = useState<'list' | 'kanban'>('list')
+  const [dueRange, setDueRange] = useState<'all' | 'today' | 'week'>('all')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all')
   const [projectFilter, setProjectFilter] = useState<string>('all')
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
 
   const projectsById = projects.reduce<Record<string, Project>>((acc, project) => {
     acc[project.id] = project
@@ -44,41 +45,6 @@ export function TasksView({ initialTasks, projects }: TasksViewProps) {
       prevTasks.map((task) => (task.id === taskId ? { ...task, ...patch } : task))
     )
     setSelectedTask((prev) => (prev?.id === taskId ? { ...prev, ...patch } : prev))
-  }
-
-  const handleCreateTask = async () => {
-    const title = window.prompt('Título de la tarea:')
-    if (!title?.trim()) return
-
-    const targetProjectId =
-      projectFilter !== 'all' ? projectFilter : projects.find(Boolean)?.id
-
-    if (!targetProjectId) {
-      toast.error('No hay proyectos disponibles para crear una tarea.')
-      return
-    }
-
-    setIsSaving(true)
-    const result = await executeMutation({
-      action: 'createTask',
-      payload: {
-        projectId: targetProjectId,
-        title: title.trim(),
-        description: '',
-        priority: 'medium',
-        dueDate: new Date().toISOString().slice(0, 10),
-        tags: [],
-      },
-    })
-    setIsSaving(false)
-
-    if (!result.ok) {
-      toast.error(result.message)
-      return
-    }
-
-    setTasks((prev) => [result.data.task, ...prev])
-    toast.success('Tarea creada')
   }
 
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
@@ -196,13 +162,22 @@ export function TasksView({ initialTasks, projects }: TasksViewProps) {
     const matchesStatus = statusFilter === 'all' || task.status === statusFilter
     const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter
     const matchesProject = projectFilter === 'all' || task.projectId === projectFilter
-    return matchesSearch && matchesStatus && matchesPriority && matchesProject
+    const dueDate = new Date(task.dueDate)
+    const today = new Date()
+    const dueToday = isSameDay(dueDate, today)
+    const dueThisWeek =
+      !isBefore(dueDate, startOfDay(today)) &&
+      !isAfter(dueDate, endOfWeek(today, { weekStartsOn: 1 }))
+    const matchesDueRange =
+      dueRange === 'all' || (dueRange === 'today' ? dueToday : dueThisWeek)
+
+    return matchesSearch && matchesStatus && matchesPriority && matchesProject && matchesDueRange
   })
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-1 flex-wrap items-center gap-2">
           <div className="relative min-w-[200px] max-w-sm flex-1">
             <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
             <Input
@@ -254,6 +229,22 @@ export function TasksView({ initialTasks, projects }: TasksViewProps) {
               ))}
             </SelectContent>
           </Select>
+          <ToggleGroup
+            type="single"
+            value={dueRange}
+            onValueChange={(value) => value && setDueRange(value as 'all' | 'today' | 'week')}
+            className="hidden md:flex"
+          >
+            <ToggleGroupItem value="all" aria-label="Todas">
+              Todas
+            </ToggleGroupItem>
+            <ToggleGroupItem value="today" aria-label="Hoy">
+              Hoy
+            </ToggleGroupItem>
+            <ToggleGroupItem value="week" aria-label="Semana">
+              Semana
+            </ToggleGroupItem>
+          </ToggleGroup>
         </div>
 
         <div className="flex items-center gap-2">
@@ -270,10 +261,15 @@ export function TasksView({ initialTasks, projects }: TasksViewProps) {
             </ToggleGroupItem>
           </ToggleGroup>
 
-          <Button size="sm" className="gap-1" onClick={() => void handleCreateTask()} disabled={isSaving}>
-            <Plus className="size-4" />
-            <span className="hidden sm:inline">Nueva tarea</span>
-          </Button>
+          <CreateTaskDialog
+            projects={projects}
+            defaultProjectId={projectFilter !== 'all' ? projectFilter : undefined}
+            triggerLabel="Nueva tarea"
+            onCreated={(task) => {
+              setTasks((prev) => [task, ...prev])
+              setSelectedTask(task)
+            }}
+          />
         </div>
       </div>
 
@@ -297,16 +293,11 @@ export function TasksView({ initialTasks, projects }: TasksViewProps) {
       {filteredTasks.length === 0 && view === 'list' && (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12">
           <p className="text-muted-foreground">No se encontraron tareas</p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-4"
-            onClick={() => void handleCreateTask()}
-            disabled={isSaving}
-          >
-            <Plus className="mr-2 size-4" />
-            Crear tu primera tarea
-          </Button>
+          <CreateTaskDialog
+            projects={projects}
+            defaultProjectId={projectFilter !== 'all' ? projectFilter : undefined}
+            triggerLabel="Crear tu primera tarea"
+          />
         </div>
       )}
 

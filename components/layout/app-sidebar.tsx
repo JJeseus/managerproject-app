@@ -8,6 +8,7 @@ import {
   FolderKanban,
   CheckSquare,
   Calendar,
+  Archive,
   Settings,
   ChevronDown,
   Plus,
@@ -65,6 +66,11 @@ const mainNavItems = [
     title: 'Calendario',
     url: '/calendar',
     icon: Calendar,
+  },
+  {
+    title: 'Recursos',
+    url: '/resources',
+    icon: Archive,
   },
 ]
 
