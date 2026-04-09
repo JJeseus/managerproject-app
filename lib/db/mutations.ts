@@ -6,6 +6,7 @@ import {
   activities,
   comments,
   notes,
+  projectRoadmapItems,
   projects,
   resources,
   resourceLinks,
@@ -15,24 +16,39 @@ import {
 import type {
   AddCommentInput,
   AddNoteInput,
+  AddRoadmapItemInput,
   AddResourceInput,
   AddSubtaskInput,
+  AssignTaskToRoadmapItemInput,
   CreateProjectInput,
   CreateTaskInput,
+  DeleteRoadmapItemInput,
   DeleteTaskInput,
+  ReorderRoadmapItemsInput,
+  UnassignTaskFromRoadmapItemInput,
   UpdateProjectInput,
+  UpdateRoadmapItemInput,
   UpdateResourceInput,
   UpdateSubtaskInput,
   UpdateTaskInput,
   UpdateTaskStatusInput,
 } from './types'
-import type { Comment, Note, Project, Resource, Subtask, Task } from '@/lib/data'
+import type {
+  Comment,
+  Note,
+  Project,
+  RoadmapItem,
+  Resource,
+  Subtask,
+  Task,
+} from '@/lib/data'
 import {
   attachResourceRelationships,
   mergeResourceTags,
   resolveResourceLinkDrafts,
 } from '@/lib/resources/resource-linking'
 import { logWarn } from '@/lib/logger'
+import { normalizeRoadmapPositions, sortRoadmapItems } from '@/lib/projects/roadmap'
 
 class MutationError extends Error {
   code: string
@@ -63,6 +79,7 @@ function mapTask(row: typeof tasks.$inferSelect): Task {
     priority: row.priority,
     dueDate: toDateOnlyString(row.dueDate),
     tags: row.tags,
+    roadmapItemId: row.roadmapItemId ?? undefined,
   }
 }
 
@@ -143,6 +160,25 @@ function mapProject(row: typeof projects.$inferSelect): Project {
   }
 }
 
+function mapRoadmapItem(row: typeof projectRoadmapItems.$inferSelect): RoadmapItem {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    title: row.title,
+    description: row.description,
+    status: row.status,
+    position: row.position,
+    startDate: row.startDate ? toDateOnlyString(row.startDate) : undefined,
+    dueDate: row.dueDate ? toDateOnlyString(row.dueDate) : undefined,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  }
+}
+
+function parseOptionalDateOnly(value?: string | null) {
+  return value ? parseDateOnly(value) : null
+}
+
 async function syncProjectProgress(db: ReturnType<typeof getDb>, projectId: string) {
   const taskRows = await db
     .select({ status: tasks.status })
@@ -178,6 +214,43 @@ async function addActivity(params: {
     projectId: params.projectId,
     taskId: params.taskId,
   })
+}
+
+async function getRoadmapItemById(db: ReturnType<typeof getDb>, itemId: string) {
+  return db.query.projectRoadmapItems.findFirst({
+    where: eq(projectRoadmapItems.id, itemId),
+  })
+}
+
+async function assertRoadmapItemBelongsToProject(
+  db: ReturnType<typeof getDb>,
+  roadmapItemId: string,
+  projectId: string
+) {
+  const roadmapItem = await getRoadmapItemById(db, roadmapItemId)
+
+  if (!roadmapItem) {
+    throw new MutationError('ROADMAP_ITEM_NOT_FOUND', 'La fase no existe.', 404)
+  }
+
+  if (roadmapItem.projectId !== projectId) {
+    throw new MutationError(
+      'ROADMAP_ITEM_PROJECT_MISMATCH',
+      'La fase no pertenece al proyecto de la tarea.',
+      400
+    )
+  }
+
+  return roadmapItem
+}
+
+async function getProjectRoadmapItems(db: ReturnType<typeof getDb>, projectId: string) {
+  const rows = await db
+    .select()
+    .from(projectRoadmapItems)
+    .where(eq(projectRoadmapItems.projectId, projectId))
+
+  return sortRoadmapItems(rows.map(mapRoadmapItem))
 }
 
 async function buildResourceContext(db: ReturnType<typeof getDb>) {
@@ -285,6 +358,10 @@ export async function createTask(input: CreateTaskInput) {
   const db = getDb()
   const taskId = `task-${crypto.randomUUID()}`
 
+  if (input.roadmapItemId) {
+    await assertRoadmapItemBelongsToProject(db, input.roadmapItemId, input.projectId)
+  }
+
   const [task] = await db
     .insert(tasks)
     .values({
@@ -296,6 +373,7 @@ export async function createTask(input: CreateTaskInput) {
       priority: input.priority,
       dueDate: parseDateOnly(input.dueDate),
       tags: input.tags,
+      roadmapItemId: input.roadmapItemId ?? null,
     })
     .returning()
 
@@ -370,6 +448,23 @@ export async function updateTask(input: UpdateTaskInput) {
     patch.dueDate = parseDateOnly(input.patch.dueDate)
   }
   if (typeof input.patch.tags !== 'undefined') patch.tags = input.patch.tags
+  if (typeof input.patch.roadmapItemId !== 'undefined') {
+    if (input.patch.roadmapItemId) {
+      const [existingTask] = await db
+        .select({ projectId: tasks.projectId })
+        .from(tasks)
+        .where(eq(tasks.id, input.taskId))
+
+      if (!existingTask) {
+        throw new MutationError('TASK_NOT_FOUND', 'La tarea no existe.', 404)
+      }
+
+      await assertRoadmapItemBelongsToProject(db, input.patch.roadmapItemId, existingTask.projectId)
+      patch.roadmapItemId = input.patch.roadmapItemId
+    } else {
+      patch.roadmapItemId = null
+    }
+  }
 
   const [task] = await db
     .update(tasks)
@@ -771,6 +866,252 @@ export async function updateProject(input: UpdateProjectInput) {
 
   return {
     project: mapProject(project),
+  }
+}
+
+export async function addRoadmapItem(input: AddRoadmapItemInput) {
+  const db = getDb()
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.id, input.projectId))
+
+  if (!project) {
+    throw new MutationError('PROJECT_NOT_FOUND', 'El proyecto no existe.', 404)
+  }
+
+  const existingItems = await getProjectRoadmapItems(db, input.projectId)
+  const nextPosition = existingItems.length + 1
+
+  const [item] = await db
+    .insert(projectRoadmapItems)
+    .values({
+      id: `roadmap-${crypto.randomUUID()}`,
+      projectId: input.projectId,
+      title: input.title,
+      description: input.description,
+      status: input.status,
+      position: nextPosition,
+      startDate: parseOptionalDateOnly(input.startDate),
+      dueDate: parseOptionalDateOnly(input.dueDate),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning()
+
+  if (!item) {
+    throw new MutationError('ROADMAP_ITEM_CREATE_FAILED', 'No se pudo crear la fase.', 500)
+  }
+
+  await addActivity({
+    type: 'project_updated',
+    description: `Se agregó la fase "${input.title}".`,
+    projectId: input.projectId,
+  })
+
+  return {
+    item: mapRoadmapItem(item),
+  }
+}
+
+export async function updateRoadmapItem(input: UpdateRoadmapItemInput) {
+  const db = getDb()
+  const existing = await getRoadmapItemById(db, input.itemId)
+
+  if (!existing) {
+    throw new MutationError('ROADMAP_ITEM_NOT_FOUND', 'La fase no existe.', 404)
+  }
+
+  const patch: Partial<typeof projectRoadmapItems.$inferInsert> = {
+    updatedAt: new Date(),
+  }
+
+  if (typeof input.patch.title !== 'undefined') patch.title = input.patch.title
+  if (typeof input.patch.description !== 'undefined') {
+    patch.description = input.patch.description
+  }
+  if (typeof input.patch.status !== 'undefined') patch.status = input.patch.status
+  if (typeof input.patch.startDate !== 'undefined') {
+    patch.startDate = parseOptionalDateOnly(input.patch.startDate)
+  }
+  if (typeof input.patch.dueDate !== 'undefined') {
+    patch.dueDate = parseOptionalDateOnly(input.patch.dueDate)
+  }
+
+  const [item] = await db
+    .update(projectRoadmapItems)
+    .set(patch)
+    .where(eq(projectRoadmapItems.id, input.itemId))
+    .returning()
+
+  if (!item) {
+    throw new MutationError('ROADMAP_ITEM_NOT_FOUND', 'La fase no existe.', 404)
+  }
+
+  await addActivity({
+    type: 'project_updated',
+    description: `Se actualizó la fase "${item.title}".`,
+    projectId: item.projectId,
+  })
+
+  return {
+    item: mapRoadmapItem(item),
+  }
+}
+
+export async function deleteRoadmapItem(input: DeleteRoadmapItemInput) {
+  const db = getDb()
+  const [item] = await db
+    .delete(projectRoadmapItems)
+    .where(eq(projectRoadmapItems.id, input.itemId))
+    .returning()
+
+  if (!item) {
+    throw new MutationError('ROADMAP_ITEM_NOT_FOUND', 'La fase no existe.', 404)
+  }
+
+  const remainingItems = await getProjectRoadmapItems(db, item.projectId)
+  const normalizedItems = normalizeRoadmapPositions(remainingItems)
+
+  await Promise.all(
+    normalizedItems.map((roadmapItem) =>
+      db
+        .update(projectRoadmapItems)
+        .set({
+          position: roadmapItem.position,
+          updatedAt: new Date(),
+        })
+        .where(eq(projectRoadmapItems.id, roadmapItem.id))
+    )
+  )
+
+  await addActivity({
+    type: 'project_updated',
+    description: `Se eliminó la fase "${item.title}".`,
+    projectId: item.projectId,
+  })
+
+  return {
+    itemId: item.id,
+  }
+}
+
+export async function reorderRoadmapItems(input: ReorderRoadmapItemsInput) {
+  const db = getDb()
+  const existingItems = await getProjectRoadmapItems(db, input.projectId)
+
+  if (
+    existingItems.length !== input.orderedItemIds.length ||
+    new Set(input.orderedItemIds).size !== input.orderedItemIds.length
+  ) {
+    throw new MutationError(
+      'ROADMAP_REORDER_INVALID',
+      'La lista ordenada de fases no coincide con el proyecto.',
+      400
+    )
+  }
+
+  const ids = new Set(existingItems.map((item) => item.id))
+  const hasInvalidIds = input.orderedItemIds.some((itemId) => !ids.has(itemId))
+
+  if (hasInvalidIds) {
+    throw new MutationError(
+      'ROADMAP_REORDER_INVALID',
+      'La lista ordenada de fases no coincide con el proyecto.',
+      400
+    )
+  }
+
+  const itemsById = Object.fromEntries(existingItems.map((item) => [item.id, item]))
+  const orderedItems = input.orderedItemIds
+    .map((itemId, index) => ({
+      ...itemsById[itemId],
+      position: index + 1,
+    }))
+    .filter(Boolean) as RoadmapItem[]
+
+  await Promise.all(
+    orderedItems.map((item) =>
+      db
+        .update(projectRoadmapItems)
+        .set({
+          position: item.position,
+          updatedAt: new Date(),
+        })
+        .where(eq(projectRoadmapItems.id, item.id))
+    )
+  )
+
+  return {
+    items: sortRoadmapItems(orderedItems),
+  }
+}
+
+export async function assignTaskToRoadmapItem(input: AssignTaskToRoadmapItemInput) {
+  const db = getDb()
+  const existingTask = await db.query.tasks.findFirst({
+    where: eq(tasks.id, input.taskId),
+  })
+
+  if (!existingTask) {
+    throw new MutationError('TASK_NOT_FOUND', 'La tarea no existe.', 404)
+  }
+
+  const roadmapItem = await assertRoadmapItemBelongsToProject(
+    db,
+    input.roadmapItemId,
+    existingTask.projectId
+  )
+
+  const [task] = await db
+    .update(tasks)
+    .set({
+      roadmapItemId: roadmapItem.id,
+      updatedAt: new Date(),
+    })
+    .where(eq(tasks.id, input.taskId))
+    .returning()
+
+  if (!task) {
+    throw new MutationError('TASK_NOT_FOUND', 'La tarea no existe.', 404)
+  }
+
+  await addActivity({
+    type: 'project_updated',
+    description: `La tarea "${task.title}" se asignó a la fase "${roadmapItem.title}".`,
+    projectId: task.projectId,
+    taskId: task.id,
+  })
+
+  return {
+    task: mapTask(task),
+  }
+}
+
+export async function unassignTaskFromRoadmapItem(input: UnassignTaskFromRoadmapItemInput) {
+  const db = getDb()
+  const [task] = await db
+    .update(tasks)
+    .set({
+      roadmapItemId: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(tasks.id, input.taskId))
+    .returning()
+
+  if (!task) {
+    throw new MutationError('TASK_NOT_FOUND', 'La tarea no existe.', 404)
+  }
+
+  await addActivity({
+    type: 'project_updated',
+    description: `La tarea "${task.title}" quedó sin fase asignada.`,
+    projectId: task.projectId,
+    taskId: task.id,
+  })
+
+  return {
+    task: mapTask(task),
   }
 }
 

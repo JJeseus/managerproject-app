@@ -25,6 +25,12 @@ export const taskStatusEnum = pgEnum('task_status', [
   'done',
 ])
 
+export const roadmapStatusEnum = pgEnum('roadmap_status', [
+  'planned',
+  'in-progress',
+  'completed',
+])
+
 export const subtaskResultEnum = pgEnum('subtask_result', [
   'pending',
   'pass',
@@ -96,6 +102,9 @@ export const tasks = pgTable(
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id, { onDelete: 'cascade' }),
+    roadmapItemId: text('roadmap_item_id').references(() => projectRoadmapItems.id, {
+      onDelete: 'set null',
+    }),
     status: taskStatusEnum('status').notNull(),
     priority: priorityEnum('priority').notNull(),
     dueDate: timestamp('due_date', { withTimezone: true }).notNull(),
@@ -109,6 +118,7 @@ export const tasks = pgTable(
   },
   (table) => ({
     projectIdIdx: index('tasks_project_id_idx').on(table.projectId),
+    roadmapItemIdIdx: index('tasks_roadmap_item_id_idx').on(table.roadmapItemId),
     statusIdx: index('tasks_status_idx').on(table.status),
     dueDateIdx: index('tasks_due_date_idx').on(table.dueDate),
   })
@@ -258,16 +268,47 @@ export const resourceLinks = pgTable(
   })
 )
 
+export const projectRoadmapItems = pgTable(
+  'project_roadmap_items',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    description: text('description').notNull().default(''),
+    status: roadmapStatusEnum('status').notNull().default('planned'),
+    position: integer('position').notNull(),
+    startDate: timestamp('start_date', { withTimezone: true }),
+    dueDate: timestamp('due_date', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    projectIdIdx: index('project_roadmap_items_project_id_idx').on(table.projectId),
+    positionIdx: index('project_roadmap_items_position_idx').on(table.position),
+  })
+)
+
 export const projectsRelations = relations(projects, ({ many }) => ({
   tasks: many(tasks),
   notes: many(notes),
   activities: many(activities),
+  roadmapItems: many(projectRoadmapItems),
 }))
 
 export const tasksRelations = relations(tasks, ({ one, many }) => ({
   project: one(projects, {
     fields: [tasks.projectId],
     references: [projects.id],
+  }),
+  roadmapItem: one(projectRoadmapItems, {
+    fields: [tasks.roadmapItemId],
+    references: [projectRoadmapItems.id],
   }),
   subtasks: many(subtasks),
   comments: many(comments),
@@ -328,4 +369,12 @@ export const resourceLinksRelations = relations(resourceLinks, ({ one }) => ({
     fields: [resourceLinks.sourceResourceId],
     references: [resources.id],
   }),
+}))
+
+export const projectRoadmapItemsRelations = relations(projectRoadmapItems, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [projectRoadmapItems.projectId],
+    references: [projects.id],
+  }),
+  tasks: many(tasks),
 }))

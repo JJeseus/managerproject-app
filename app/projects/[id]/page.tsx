@@ -15,7 +15,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     notFound()
   }
 
-  const { project, tasks, notes, resources } = projectData
+  const { project, tasks, notes, resources, roadmapItems } = projectData
 
   return (
     <>
@@ -32,6 +32,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           initialTasks={tasks}
           notes={notes}
           resources={resources}
+          roadmapItems={roadmapItems}
         />
       </div>
     </>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { addDays } from 'date-fns'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
@@ -25,23 +25,30 @@ import {
 } from '@/components/ui/select'
 import { executeMutation } from '@/lib/client/mutations'
 import { formatDateInputValue } from '@/lib/date'
-import { type Priority, type Project, type Task } from '@/lib/data'
+import { roadmapStatusLabels, type Priority, type Project, type RoadmapItem, type Task } from '@/lib/data'
 
 interface CreateTaskDialogProps {
   projects: Project[]
   defaultProjectId?: string
+  roadmapItems?: RoadmapItem[]
+  defaultRoadmapItemId?: string
   triggerLabel?: string
   onCreated?: (task: Task) => void
 }
 
+const CREATE_TASK_DESCRIPTION_ID = 'create-task-dialog-description'
+
 export function CreateTaskDialog({
   projects,
   defaultProjectId,
+  roadmapItems = [],
+  defaultRoadmapItemId,
   triggerLabel = 'Nueva tarea',
   onCreated,
 }: CreateTaskDialogProps) {
   const [open, setOpen] = useState(false)
   const [projectId, setProjectId] = useState(defaultProjectId ?? projects[0]?.id ?? '')
+  const [roadmapItemId, setRoadmapItemId] = useState(defaultRoadmapItemId ?? 'none')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState<Priority>('medium')
@@ -49,8 +56,16 @@ export function CreateTaskDialog({
   const [tags, setTags] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
+  useEffect(() => {
+    if (!open) {
+      setProjectId(defaultProjectId ?? projects[0]?.id ?? '')
+      setRoadmapItemId(defaultRoadmapItemId ?? 'none')
+    }
+  }, [defaultProjectId, defaultRoadmapItemId, open, projects])
+
   const resetForm = () => {
     setProjectId(defaultProjectId ?? projects[0]?.id ?? '')
+    setRoadmapItemId(defaultRoadmapItemId ?? 'none')
     setTitle('')
     setDescription('')
     setPriority('medium')
@@ -84,6 +99,7 @@ export function CreateTaskDialog({
           .split(',')
           .map((tag) => tag.trim())
           .filter(Boolean),
+        roadmapItemId: roadmapItemId === 'none' ? null : roadmapItemId,
       },
     })
     setIsSaving(false)
@@ -113,10 +129,13 @@ export function CreateTaskDialog({
           <span>{triggerLabel}</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent
+        className="max-h-[90vh] overflow-y-auto sm:max-w-xl"
+        aria-describedby={CREATE_TASK_DESCRIPTION_ID}
+      >
         <DialogHeader>
           <DialogTitle>Crear tarea</DialogTitle>
-          <DialogDescription>
+          <DialogDescription id={CREATE_TASK_DESCRIPTION_ID}>
             Registra una tarea con fecha, prioridad y proyecto asociado.
           </DialogDescription>
         </DialogHeader>
@@ -139,6 +158,25 @@ export function CreateTaskDialog({
               </Select>
             </div>
           )}
+
+          {defaultProjectId && roadmapItems.length > 0 ? (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Fase</label>
+              <Select value={roadmapItemId} onValueChange={setRoadmapItemId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona una fase" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin fase</SelectItem>
+                  {roadmapItems.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.title} · {roadmapStatusLabels[item.status]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
 
           <div className="space-y-2">
             <label className="text-sm font-medium" htmlFor="task-title">

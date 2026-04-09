@@ -7,6 +7,7 @@ import {
   activities as activitiesTable,
   comments as commentsTable,
   notes as notesTable,
+  projectRoadmapItems as projectRoadmapItemsTable,
   projects as projectsTable,
   resources as resourcesTable,
   resourceLinks as resourceLinksTable,
@@ -18,6 +19,7 @@ import {
   getNotesByProjectId,
   getRecentResources,
   getResourceLinks,
+  getRoadmapItemsByProjectId,
   getProjectById,
   getProjectStats,
   getProjects,
@@ -26,6 +28,7 @@ import {
   type Activity,
   type Note,
   type Project,
+  type RoadmapItem,
   type Resource,
   type ResourceGraphEdge,
   type ResourceLink,
@@ -37,6 +40,7 @@ import {
   buildResourceGraphEdges,
   resolveResourceLinkDrafts,
 } from '@/lib/resources/resource-linking'
+import { sortRoadmapItems } from '@/lib/projects/roadmap'
 
 export interface TaskCounts {
   total: number
@@ -50,6 +54,7 @@ interface ProjectDetailData {
   tasks: Task[]
   notes: Note[]
   resources: Resource[]
+  roadmapItems: RoadmapItem[]
 }
 
 export interface ResourceWithProject extends Resource {
@@ -91,6 +96,21 @@ function mapActivity(row: typeof activitiesTable.$inferSelect): Activity {
     timestamp: row.timestamp.toISOString(),
     projectId: row.projectId ?? undefined,
     taskId: row.taskId ?? undefined,
+  }
+}
+
+function mapRoadmapItem(row: typeof projectRoadmapItemsTable.$inferSelect): RoadmapItem {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    title: row.title,
+    description: row.description,
+    status: row.status,
+    position: row.position,
+    startDate: row.startDate ? toDateOnlyString(row.startDate) : undefined,
+    dueDate: row.dueDate ? toDateOnlyString(row.dueDate) : undefined,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   }
 }
 
@@ -288,7 +308,8 @@ export async function getProjectDetailById(
         return null
       }
 
-      const [taskRows, noteRows, allProjectRows, allResourceRows, resourceLinkRows] = await Promise.all([
+      const [taskRows, noteRows, roadmapRows, allProjectRows, allResourceRows, resourceLinkRows] =
+        await Promise.all([
         db
           .select()
           .from(tasksTable)
@@ -299,10 +320,15 @@ export async function getProjectDetailById(
           .from(notesTable)
           .where(eq(notesTable.projectId, projectId))
           .orderBy(desc(notesTable.timestamp)),
+        db
+          .select()
+          .from(projectRoadmapItemsTable)
+          .where(eq(projectRoadmapItemsTable.projectId, projectId))
+          .orderBy(asc(projectRoadmapItemsTable.position)),
         db.select().from(projectsTable),
         db.select().from(resourcesTable).orderBy(desc(resourcesTable.createdAt)),
         selectResourceLinksSafe(db),
-      ])
+        ])
 
       const taskIds = taskRows.map((task) => task.id)
 
@@ -334,6 +360,7 @@ export async function getProjectDetailById(
         priority: task.priority,
         dueDate: toDateOnlyString(task.dueDate),
         tags: task.tags,
+        roadmapItemId: task.roadmapItemId ?? undefined,
         subtasks: subtasksByTaskId[task.id] ?? undefined,
         comments: commentsByTaskId[task.id] ?? undefined,
       }))
@@ -365,6 +392,7 @@ export async function getProjectDetailById(
             (link) => link.targetType === 'project' && link.targetId === projectId
           )
         }),
+        roadmapItems: sortRoadmapItems(roadmapRows.map(mapRoadmapItem)),
       }
     },
     () => {
@@ -392,6 +420,7 @@ export async function getProjectDetailById(
             (link) => link.targetType === 'project' && link.targetId === projectId
           )
         }),
+        roadmapItems: getRoadmapItemsByProjectId(projectId),
       }
     }
   )
@@ -543,6 +572,7 @@ export async function getCalendarTasksAndProjects() {
           priority: task.priority,
           dueDate: toDateOnlyString(task.dueDate),
           tags: task.tags,
+          roadmapItemId: task.roadmapItemId ?? undefined,
           subtasks: subtasksByTaskId[task.id] ?? undefined,
           comments: commentsByTaskId[task.id] ?? undefined,
         })),

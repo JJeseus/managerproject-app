@@ -16,6 +16,8 @@ export const prioritySchema = z.enum(['low', 'medium', 'high'])
 
 export const taskStatusSchema = z.enum(['todo', 'in-progress', 'blocked', 'done'])
 
+export const roadmapStatusSchema = z.enum(['planned', 'in-progress', 'completed'])
+
 export const subtaskResultSchema = z.enum(['pending', 'pass', 'fail'])
 
 export const resourceTypeSchema = z.enum([
@@ -42,6 +44,7 @@ export const createTaskInputSchema = z.object({
   priority: prioritySchema.default('medium'),
   dueDate: dateOnlySchema,
   tags: z.array(z.string().trim().min(1)).default([]),
+  roadmapItemId: idSchema.nullish(),
 })
 
 export const createProjectInputSchema = z.object({
@@ -66,6 +69,7 @@ export const updateTaskInputSchema = z.object({
       priority: prioritySchema.optional(),
       dueDate: dateOnlySchema.optional(),
       tags: z.array(z.string().trim().min(1)).optional(),
+      roadmapItemId: idSchema.nullish(),
     })
     .refine((value) => Object.keys(value).length > 0, {
       message: 'Se requiere al menos un campo para actualizar.',
@@ -164,9 +168,52 @@ export const updateProjectInputSchema = z.object({
     }),
 })
 
+export const addRoadmapItemInputSchema = z.object({
+  projectId: idSchema,
+  title: z.string().trim().min(1),
+  description: z.string().trim().default(''),
+  status: roadmapStatusSchema.default('planned'),
+  startDate: dateOnlySchema.nullish(),
+  dueDate: dateOnlySchema.nullish(),
+})
+
+export const updateRoadmapItemInputSchema = z.object({
+  itemId: idSchema,
+  patch: z
+    .object({
+      title: z.string().trim().min(1).optional(),
+      description: z.string().trim().optional(),
+      status: roadmapStatusSchema.optional(),
+      startDate: dateOnlySchema.nullish(),
+      dueDate: dateOnlySchema.nullish(),
+    })
+    .refine((value) => Object.keys(value).length > 0, {
+      message: 'Se requiere al menos un campo para actualizar.',
+    }),
+})
+
+export const deleteRoadmapItemInputSchema = z.object({
+  itemId: idSchema,
+})
+
+export const reorderRoadmapItemsInputSchema = z.object({
+  projectId: idSchema,
+  orderedItemIds: z.array(idSchema).min(1),
+})
+
+export const assignTaskToRoadmapItemInputSchema = z.object({
+  taskId: idSchema,
+  roadmapItemId: idSchema,
+})
+
+export const unassignTaskFromRoadmapItemInputSchema = z.object({
+  taskId: idSchema,
+})
+
 export const mutationRequestSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('createProject'), payload: createProjectInputSchema }),
   z.object({ action: z.literal('createTask'), payload: createTaskInputSchema }),
+  z.object({ action: z.literal('addRoadmapItem'), payload: addRoadmapItemInputSchema }),
   z.object({ action: z.literal('updateTask'), payload: updateTaskInputSchema }),
   z.object({ action: z.literal('deleteTask'), payload: deleteTaskInputSchema }),
   z.object({
@@ -180,7 +227,23 @@ export const mutationRequestSchema = z.discriminatedUnion('action', [
   }),
   z.object({ action: z.literal('addComment'), payload: addCommentInputSchema }),
   z.object({ action: z.literal('addNote'), payload: addNoteInputSchema }),
+  z.object({
+    action: z.literal('assignTaskToRoadmapItem'),
+    payload: assignTaskToRoadmapItemInputSchema,
+  }),
   z.object({ action: z.literal('addResource'), payload: addResourceInputSchema }),
+  z.object({
+    action: z.literal('deleteRoadmapItem'),
+    payload: deleteRoadmapItemInputSchema,
+  }),
+  z.object({
+    action: z.literal('reorderRoadmapItems'),
+    payload: reorderRoadmapItemsInputSchema,
+  }),
+  z.object({
+    action: z.literal('unassignTaskFromRoadmapItem'),
+    payload: unassignTaskFromRoadmapItemInputSchema,
+  }),
   z.object({
     action: z.literal('updateResource'),
     payload: updateResourceInputSchema,
@@ -188,6 +251,10 @@ export const mutationRequestSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('updateProject'),
     payload: updateProjectInputSchema,
+  }),
+  z.object({
+    action: z.literal('updateRoadmapItem'),
+    payload: updateRoadmapItemInputSchema,
   }),
 ])
 

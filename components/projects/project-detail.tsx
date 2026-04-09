@@ -21,6 +21,7 @@ import { formatDate, formatDateShort } from '@/lib/date'
 import {
   type Note,
   type Project,
+  type RoadmapItem,
   type Resource,
   type Task,
   type TaskStatus,
@@ -31,6 +32,7 @@ import {
 } from '@/lib/data'
 import { ProjectNotes } from '@/components/notes/project-notes'
 import { EditProjectDialog } from '@/components/projects/edit-project-dialog'
+import { ProjectRoadmapView } from '@/components/projects/project-roadmap-view'
 import { ProjectResourcesMap } from '@/components/projects/project-resources-map'
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
 import { TaskDetailPanel } from '@/components/tasks/task-detail-panel'
@@ -41,6 +43,7 @@ interface ProjectDetailProps {
   initialTasks: Task[]
   notes: Note[]
   resources: Resource[]
+  roadmapItems: RoadmapItem[]
 }
 
 function calculateProgress(tasks: Task[]) {
@@ -53,10 +56,12 @@ export function ProjectDetail({
   initialTasks,
   notes,
   resources,
+  roadmapItems,
 }: ProjectDetailProps) {
   const [currentProject, setCurrentProject] = useState<Project>(project)
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [projectNotes, setProjectNotes] = useState<Note[]>(notes)
+  const [projectRoadmapItems, setProjectRoadmapItems] = useState<RoadmapItem[]>(roadmapItems)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
   const completedTasks = tasks.filter((task) => task.status === 'done').length
@@ -74,6 +79,11 @@ export function ProjectDetail({
       prevTasks.map((task) => (task.id === taskId ? { ...task, ...patch } : task))
     )
     setSelectedTask((prev) => (prev?.id === taskId ? { ...prev, ...patch } : prev))
+  }
+
+  const replaceTasks = (nextTasks: Task[]) => {
+    setTasks(nextTasks)
+    setSelectedTask((prev) => (prev ? nextTasks.find((task) => task.id === prev.id) ?? null : null))
   }
 
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
@@ -333,12 +343,14 @@ export function ProjectDetail({
         <div className="flex items-center justify-between">
           <TabsList>
             <TabsTrigger value="tasks">Tareas ({tasks.length})</TabsTrigger>
+            <TabsTrigger value="roadmap">Hoja de ruta ({projectRoadmapItems.length})</TabsTrigger>
             <TabsTrigger value="resources">Recursos ({resources.length})</TabsTrigger>
             <TabsTrigger value="notes">Notas ({projectNotes.length})</TabsTrigger>
           </TabsList>
           <CreateTaskDialog
             projects={[currentProject]}
             defaultProjectId={currentProject.id}
+            roadmapItems={projectRoadmapItems}
             triggerLabel="Nueva tarea"
             onCreated={(task) => {
               setTasks((prev) => {
@@ -346,6 +358,7 @@ export function ProjectDetail({
                 syncProjectProgress(nextTasks)
                 return nextTasks
               })
+              setSelectedTask(task)
             }}
           />
         </div>
@@ -365,6 +378,7 @@ export function ProjectDetail({
                 <CreateTaskDialog
                   projects={[currentProject]}
                   defaultProjectId={currentProject.id}
+                  roadmapItems={projectRoadmapItems}
                   triggerLabel="Crear primera tarea"
                   onCreated={(task) => {
                     setTasks((prev) => {
@@ -372,11 +386,31 @@ export function ProjectDetail({
                       syncProjectProgress(nextTasks)
                       return nextTasks
                     })
+                    setSelectedTask(task)
                   }}
                 />
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="roadmap" className="mt-4">
+          <ProjectRoadmapView
+            project={currentProject}
+            roadmapItems={projectRoadmapItems}
+            tasks={tasks}
+            onRoadmapItemsChange={setProjectRoadmapItems}
+            onTasksChange={replaceTasks}
+            onTaskCreated={(task) => {
+              setTasks((prev) => {
+                const nextTasks = [task, ...prev]
+                syncProjectProgress(nextTasks)
+                return nextTasks
+              })
+              setSelectedTask(task)
+            }}
+            onTaskOpen={setSelectedTask}
+          />
         </TabsContent>
 
         <TabsContent value="notes" className="mt-4">

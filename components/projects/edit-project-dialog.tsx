@@ -30,6 +30,8 @@ interface EditProjectDialogProps {
   onUpdated?: (project: Project) => void
 }
 
+const EDIT_PROJECT_DESCRIPTION_ID = 'edit-project-dialog-description'
+
 export function EditProjectDialog({ project, onUpdated }: EditProjectDialogProps) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState(project.name)
@@ -90,10 +92,13 @@ export function EditProjectDialog({ project, onUpdated }: EditProjectDialogProps
           Editar proyecto
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent
+        className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+        aria-describedby={EDIT_PROJECT_DESCRIPTION_ID}
+      >
         <DialogHeader>
           <DialogTitle>Editar proyecto</DialogTitle>
-          <DialogDescription>
+          <DialogDescription id={EDIT_PROJECT_DESCRIPTION_ID}>
             Cambia la fase, fechas y datos generales del proyecto.
           </DialogDescription>
         </DialogHeader>
@@ -139,25 +144,25 @@ export function EditProjectDialog({ project, onUpdated }: EditProjectDialogProps
                 </SelectContent>
               </Select>
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Prioridad</label>
-              <Select
-                value={priority}
-                onValueChange={(value) => setPriority(value as Project['priority'])}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Prioridad" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(priorityLabels).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Prioridad</label>
+            <Select
+              value={priority}
+              onValueChange={(value) => setPriority(value as Project['priority'])}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Prioridad" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(priorityLabels).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">

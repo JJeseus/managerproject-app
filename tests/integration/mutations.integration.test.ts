@@ -1,7 +1,16 @@
 import { sql } from 'drizzle-orm'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { getDb } from '@/lib/db/client'
-import { createTask, deleteTask, updateTaskStatus } from '@/lib/db/mutations'
+import {
+  addRoadmapItem,
+  assignTaskToRoadmapItem,
+  createTask,
+  deleteRoadmapItem,
+  deleteTask,
+  reorderRoadmapItems,
+  unassignTaskFromRoadmapItem,
+  updateTaskStatus,
+} from '@/lib/db/mutations'
 import { projects } from '@/lib/db/schema'
 
 const hasDatabaseUrl = Boolean(process.env.DATABASE_URL)
@@ -50,5 +59,57 @@ describeIfDatabase('integración de mutaciones', () => {
 
     const deleted = await deleteTask({ taskId: created.task.id })
     expect(deleted.taskId).toBe(created.task.id)
+  })
+
+  it('crea fases y asigna una tarea', async () => {
+    const discovery = await addRoadmapItem({
+      projectId,
+      title: 'Descubrimiento',
+      description: '',
+      status: 'planned',
+      startDate: '2026-04-01',
+      dueDate: '2026-04-05',
+    })
+    const delivery = await addRoadmapItem({
+      projectId,
+      title: 'Entrega',
+      description: '',
+      status: 'planned',
+      startDate: '2026-04-06',
+      dueDate: '2026-04-12',
+    })
+
+    const createdTask = await createTask({
+      projectId,
+      title: 'Tarea con fase',
+      description: '',
+      priority: 'medium',
+      dueDate: '2026-04-10',
+      tags: ['itest'],
+      roadmapItemId: discovery.item.id,
+    })
+
+    expect(createdTask.task.roadmapItemId).toBe(discovery.item.id)
+
+    const assigned = await assignTaskToRoadmapItem({
+      taskId: createdTask.task.id,
+      roadmapItemId: delivery.item.id,
+    })
+    expect(assigned.task.roadmapItemId).toBe(delivery.item.id)
+
+    const reordered = await reorderRoadmapItems({
+      projectId,
+      orderedItemIds: [delivery.item.id, discovery.item.id],
+    })
+    expect(reordered.items[0]?.id).toBe(delivery.item.id)
+
+    const unassigned = await unassignTaskFromRoadmapItem({
+      taskId: createdTask.task.id,
+    })
+    expect(unassigned.task.roadmapItemId).toBeUndefined()
+
+    await deleteTask({ taskId: createdTask.task.id })
+    await deleteRoadmapItem({ itemId: discovery.item.id })
+    await deleteRoadmapItem({ itemId: delivery.item.id })
   })
 })

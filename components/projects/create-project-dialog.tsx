@@ -32,6 +32,7 @@ import {
 import { priorityLabels, statusLabels } from '@/lib/data'
 
 const DEFAULT_DESCRIPTION = ''
+const CREATE_PROJECT_DESCRIPTION_ID = 'create-project-dialog-description'
 
 export function CreateProjectDialog() {
   const router = useRouter()
@@ -110,10 +111,13 @@ export function CreateProjectDialog() {
           <span>Nuevo proyecto</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent
+        className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+        aria-describedby={CREATE_PROJECT_DESCRIPTION_ID}
+      >
         <DialogHeader>
           <DialogTitle>Crear proyecto</DialogTitle>
-          <DialogDescription>
+          <DialogDescription id={CREATE_PROJECT_DESCRIPTION_ID}>
             Define el objetivo, fechas y estado inicial del nuevo proyecto.
           </DialogDescription>
         </DialogHeader>
@@ -161,25 +165,25 @@ export function CreateProjectDialog() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Prioridad</label>
-              <Select
-                value={priority}
-                onValueChange={(value) => setPriority(value as typeof priority)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Prioridad" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(priorityLabels).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Prioridad</label>
+            <Select
+              value={priority}
+              onValueChange={(value) => setPriority(value as typeof priority)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Prioridad" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(priorityLabels).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
